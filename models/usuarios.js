@@ -6,6 +6,7 @@ var userSchema = new Schema({
     name: String,
     email: { type: String, unique: true },
     password: { type: String, required: true },
+    firsttime: { type: Boolean, default: true },
     role: String
 });
 

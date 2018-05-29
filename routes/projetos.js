@@ -13,6 +13,7 @@ route.get('/', function(req, res){
         if (err) {
             // retorna mensagem de erro
             // TODO retornar código http de erro
+            res.status(400);
             res.json({ message: 'Erro na recuperação de Projetos', type: 'error' });
             return;
         }
@@ -28,9 +29,9 @@ route.post('/', function(req, res){
     // TODO validar requisição
     // recebe os valores da requisição
     Projeto.name = req.body.name;
-    Projeto.dateStart = req.body.datestart, // Date.now() ...... não, pode ter começado em outro dia... pode ter default, mas deve poder ser alterado!
-    Projeto.dateEnd = req.body.dateend;
-    Projeto.datePrevision = req.body.dateprevision;
+    Projeto.dateStart = req.body.dateStart, // Date.now() ...... não, pode ter começado em outro dia... pode ter default, mas deve poder ser alterado!
+    Projeto.dateEnd = req.body.dateEnd;
+    Projeto.datePrevision = req.body.datePrevision;
     Projeto.status = req.body.status;
     Projeto.description = req.body.description;
     Projeto.budget = req.body.budget;
@@ -46,10 +47,12 @@ route.post('/', function(req, res){
         if (err) {
             // retorna mensagem de erro
             // TODO retornar código http de erro
+            res.status(400);
             res.json({ message: 'Erro na inclusão de Projetos', type: 'error' });
             return;
         }
         // Devolve o objeto salvo
+        res.status(201);
         res.json(prj);
     });
 });
@@ -61,6 +64,7 @@ route.get('/:id', function(req, res){
         if (err) {
             // retorna mensagem de erro
             // TODO retornar código http de erro
+            res.status(400);
             res.json({ message: 'Erro na recuperação de um Projeto por ID', type: 'error' });
             return;
         }
@@ -75,6 +79,7 @@ route.put('/:id', function(req, res){
         if (err) {
             // retorna mensagem de erro
             // TODO retornar código http de erro
+            res.status(400);
             res.json({ message: 'Erro na fase de recuperação de um Projeto por ID para edição', type: 'error' });
             return;
         }
@@ -87,6 +92,8 @@ route.put('/:id', function(req, res){
         prj.datePrevision = req.body.datePrevision;
         prj.status = req.body.status;
         prj.justification = req.body.justification;
+        prj.dateChangeStatus = req.body.dateChangeStatus;
+        prj.userChangeStatus = req.body.userChangeStatus; // _id name email role
         prj.description = req.body.description;
         prj.budget = req.body.budget;
         prj.risk = req.body.risk;
@@ -99,6 +106,7 @@ route.put('/:id', function(req, res){
             if (err) {
                 // retorna mensagem de erro
                 // TODO retornar código http de erro
+                res.status(400);
                 res.json({ message: 'Erro na edição de Projetos', type: 'error' });
                 return;
             }
@@ -114,6 +122,7 @@ route.delete('/:id', function(req, res) {
     console.log(req.params.id);
     projetoModel.remove({_id: req.params.id}, function(err, prj) {
         if (err) {
+            res.status(400);
             res.json({ message: 'Erro ao excluir elemento de Projetos', type: 'error' });
             return;
         }

@@ -27,7 +27,7 @@ router.get('/', function(req, res){
     User.name = 'SETUP';
     User.email = 'setup@email.com';
     User.password = 'setup';
-    User.role = 'admin';
+    User.role = 'Administrador';
 
     User.save(function(err, usr){
         if (err) {
@@ -51,7 +51,7 @@ router.post('/', function(req, res){
     var Permission = new permissionModel();
     Permission.view = 'Projetos';
     Permission.route = '/projeto';
-    Permission.role = 'admin';
+    Permission.role = 'Administrador';
 
     Permission.save(function(err, obj){
         if (err) {
@@ -69,7 +69,7 @@ router.post('/', function(req, res){
     Permission = new permissionModel();
     Permission.view = 'Usuários';
     Permission.route = '/usuario';
-    Permission.role = 'admin';
+    Permission.role = 'Administrador';
 
     Permission.save(function(err, obj){
         if (err) {
@@ -87,7 +87,7 @@ router.post('/', function(req, res){
     Permission = new permissionModel();
     Permission.view = 'Indicadores';
     Permission.route = '/indicador';
-    Permission.role = 'admin';
+    Permission.role = 'Administrador';
 
     Permission.save(function(err, obj){
         if (err) {
@@ -105,7 +105,7 @@ router.post('/', function(req, res){
     Permission = new permissionModel();
     Permission.view = 'Projeto - Equipe';
     Permission.route = '/projeto-equipe';
-    Permission.role = 'admin';
+    Permission.role = 'Administrador';
 
     Permission.save(function(err, obj){
         if (err) {
@@ -123,7 +123,7 @@ router.post('/', function(req, res){
     Permission = new permissionModel();
     Permission.view = 'Projeto - Indicadores';
     Permission.route = '/projeto-indicador';
-    Permission.role = 'admin';
+    Permission.role = 'Administrador';
 
     Permission.save(function(err, obj){
         if (err) {
@@ -141,7 +141,7 @@ router.post('/', function(req, res){
     Permission = new permissionModel();
     Permission.view = 'Projeto - Indicador - Fase';
     Permission.route = '/projeto-indicador-fase';
-    Permission.role = 'admin';
+    Permission.role = 'Administrador';
 
     Permission.save(function(err, obj){
         if (err) {
@@ -159,7 +159,7 @@ router.post('/', function(req, res){
     Permission = new permissionModel();
     Permission.view = 'Projeto - Status';
     Permission.route = '/projeto-status';
-    Permission.role = 'admin';
+    Permission.role = 'Administrador';
 
     Permission.save(function(err, obj){
         if (err) {
@@ -177,7 +177,7 @@ router.post('/', function(req, res){
     Permission = new permissionModel();
     Permission.view = 'Relatório';
     Permission.route = '/relatorio';
-    Permission.role = 'admin';
+    Permission.role = 'Administrador';
 
     Permission.save(function(err, obj){
         if (err) {
@@ -196,7 +196,7 @@ router.post('/', function(req, res){
     Permission = new permissionModel();
     Permission.view = 'Permissões';
     Permission.route = '/permissao';
-    Permission.role = 'admin';
+    Permission.role = 'Administrador';
 
     Permission.save(function(err, obj){
         if (err) {
