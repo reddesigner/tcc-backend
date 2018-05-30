@@ -42,6 +42,9 @@ var bodyParser = require('body-parser');
 
 var config = require('./config');
 
+var mailer = require('./extra/mailer');
+// mailer.send(); // envia email!
+
 // banco de dados
 mongoose.connect(config.database, function(err){
     if (err) {
@@ -110,6 +113,7 @@ router.use('/relatorio', reportRoute);
 app.use('/api', router);
 
 // qualquer outra rota tem retorno: http 404
+/*
 app.use(function(req, res){
     console.log('404');
     // responde com html
@@ -127,6 +131,14 @@ app.use(function(req, res){
     // default no caso de plain-text. send()
     res.status(404);
     res.type('txt').send('Recurso não encontrado');
+});
+*/
+
+// qualquer outra rota vai para pasta public e arquivo index.html
+app.use('/public', express.static(__dirname + '/public'));
+
+app.get('/*', function(req, res){
+  res.sendFile(__dirname + '/public/index.html');
 });
 
 // ========================================================= //
@@ -244,15 +256,9 @@ Setup inicial da aplicação
 26 - aplicacao deve enviar emails
 27 - relatorio alta diretoria
 28 - desespero na escrita
-29 - terminar a escrita
+29 - terminar a escrita.... hahahahaha!!! fudeu!!!
 30 - mais um dia
 31 - enviar tudo!
-
-
-
-usuario admin:
-alexdd@mail.com
-pass123
 
 
 
@@ -275,8 +281,8 @@ mandrill
     Resposta*42
     api key: 8ac09b65ecf4d3cc1143bd4fc326f49d-us18
 
-
-
+google
+    - desiste de tudo ai de cima... usa o google!
 
 
 
@@ -323,5 +329,26 @@ coisas a fazer depois (se o povo da PUC perguntar)
 paginação nas tabelas
 filtros nas tabelas
 activeGuard do angular para previnir mostrar rotas que o usuário não tem permissão
+
+
+
+
+ante-penultimo dia!!!
+já é noite!!!... bicho tá pegannnnnndo...
+
+o que há nos exemplos de bons projetos?
+
+- tamanho
+TCC00 - 243 páginas >>> absurdo!
+TCC01 - 96 páginas
+TCC02 - 111 paginas >>> parece ser um bom exemplo a seguir
+TCC03 - 109 paginas
+
+- testes
+TCC00 um deles tem evidências (prints com as telas e as situações narradas)
+TCC01 tem só um tabelão de testes, nem mesmo divide por caso de uso
+TCC02 tem teste de usuários com prints
+TCC03 tem tabelas divididas por caso de uso
+
 
 */
