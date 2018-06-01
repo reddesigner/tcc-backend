@@ -60,7 +60,7 @@ route.post('/', function(req, res){
 route.get('/:id', function(req, res){
     console.log('-\nGET com ID em projetos');
     console.log(req.params.id);
-    projetoModel.findById(req.params.id, function(err, prj){
+    projetoModel.findById(req.params.id).lean().exec(function(err, prj){
         if (err) {
             // retorna mensagem de erro
             // TODO retornar código http de erro
@@ -68,6 +68,7 @@ route.get('/:id', function(req, res){
             res.json({ message: 'Erro na recuperação de um Projeto por ID', type: 'error' });
             return;
         }
+        // prj['__meta'] = "meta informação...";
         res.json(prj);
     });
 });
@@ -101,6 +102,19 @@ route.put('/:id', function(req, res){
         //prj.manager = {};
         //prj.indicators = [];
         //prj.team = [];
+/*
+        if (req.body.risk == "Alto"){
+            var CronJob = require('cron').CronJob;
+            var job = new CronJob('00 30 11 * * 5', function() {
+            // acompanhamento mensal
+            }, function () {
+                // This function is executed when the job stops
+                console.log('cron terminou');
+            },
+            true // Start the job right now
+            );
+        }
+        */
     
         prj.save(function(err, prja){
             if (err) {

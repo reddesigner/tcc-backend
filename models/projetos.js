@@ -62,7 +62,13 @@ var projectSchema = new Schema({
         name: String,
         email: String,
         role: String
-    }]
+    }],
+    manager: {
+        _id: Schema.Types.ObjectId,
+        name: String,
+        email: String,
+        role: String
+    }
 });
 
 module.exports = mongoose.model('project', projectSchema);
