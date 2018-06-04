@@ -9,7 +9,6 @@
 var express = require('express');
 var app = express();
 
-var mongoose = require('mongoose');
 //var jwt = require('jsonwebtoken');
 
 var bodyParser = require('body-parser');
@@ -23,18 +22,42 @@ var cron = require('./extra/cron');
 //cron.initTest();
 
 // banco de dados
+var mongoose = require('mongoose');
+//
+var db = mongoose.connection;
+db.on('connecting', function() {
+  console.log('|-----------------------> connecting to MongoDB...');
+});
+db.on('error', function(error) {
+  console.error('|-----------------------> Error in MongoDb connection: ' + error);
+  mongoose.disconnect();
+});
+db.on('connected', function() {
+  console.log('|-----------------------> MongoDB connected!');
+});
+db.once('open', function() {
+  console.log('|-----------------------> MongoDB connection opened!');
+});
+db.on('reconnected', function () {
+  console.log('|-----------------------> MongoDB reconnected!');
+});
+db.on('disconnected', function() {
+  console.log('|-----------------------> MongoDB disconnected!');
+  // mongoose.connect(config.database, {server:{auto_reconnect:true}}); // Atenção: mongoose.connect em 2 lugares diferentes!
+});
+//
 mongoose.connect(config.database, function(err){
     if (err) {
-        console.log('Erro de conexão com banco de dados');
-        console.dir(err);
-        // TODO erro conexão com o banco
+        console.log('\n\nSERVER.JS, linha 50\n - Erro de conexão com banco de dados');
         return;
     }
 });
 
 // cors
 var cors = require('cors');
-app.use(cors());
+app.use(cors({
+    exposedHeaders: ['authorization', 'content-type', 'observe', 'x-access-token', 'X-Powered-By', 'x-permissions']
+}));
 
 // configrar body-parser
 app.use(bodyParser.urlencoded({ extended: true }));
@@ -68,19 +91,39 @@ router.use('/setup', setupRoute);
 // middleware de autenticação/autorização para ser usado em todas chamadas/rotas
 router.use(autorizarMiddleWareRoute);
 
-/*
-// TODO TEMP teste apenas
-router.use(function(req,res,next){
-    res.setHeader('aux', 'planta marron bom-bom');
-    var token = req.body.token || req.query.token || req.headers['x-access-token'] || req.headers['Authorization'];
-    // decodifica o token
-    if (token && token != '') {
-        console.log('token', token);
+// TODO TEMP teste apenas ----------- manter a checagem de erro de conexão ao banco em algum lugar...
+/*router.use(function(req,res,next) {
+    // checa conexão ao banco
+    if (mongoose.connection.readyState) {
+        //x-permissions
+        var permissionModel = require('./models/permissoes');
+        permissionModel.find({
+            route: req.url
+        }).lean().exec(function(err, perms) {
+            let sendperm = 'Gerente';
+            for (let t=0; t<perms.length; t++) {
+                for (let i=0; i<perms[t].role.length; i++) {
+                    if (sendperm.length)
+                        sendperm = sendperm + ', ' + perms[t].role[i];
+                    else
+                        sendperm = perms[t].role[i];
+                }
+            }
+            res.setHeader('x-permissions', sendperm);
+            //res.setHeader('x-permissions', JSON.stringify(perms));
+            next();
+        });
+        //next();
+    } else {
+        // tenta montar nova conexão para próximos requests
+        mongoose.connect(config.database);
+        // enquanto isso retorna erro de imediato, frontend deve fazer um retry!
+        res.status(500);
+        res.send({ message: 'Problemas na conexão com banco de dados da aplicação', type: 'error', action: 'retry' });
+        return;
     }
-    res.setHeader('X-Powered-By', 'Galo!');
-    next();
-});
-*/
+});*/
+
 // rotas > delegar demais rotas para respectivos roteadores
 router.use('/autenticar', autenticarRoute);
 router.use('/projeto', projectRoute);
@@ -99,13 +142,12 @@ app.use('/api', router);
 // o frontend usará o prefixo /frontend
 app.use('/frontend', express.static(__dirname + '/public'));
 app.use('/frontend', function(req, res){
-    //console.log('All requests...');
     res.sendFile(__dirname + '/public/index.html');
 });
 
 // qualquer outra rota tem retorno: http 404
 app.use(function(req, res){
-    console.log('404');
+    console.log('\n\nSERVER.JS 150. \n 404');
     // responde com html
     if (req.accepts('html')) { // melhor usar req.format ?
         res.status(404);
@@ -125,6 +167,6 @@ app.use(function(req, res){
 
 // ========================================================= //
 
-app.listen(3000);
+app.listen(4200);
 
-console.log('app rodando e ouvindo na porta 3000');
+console.log('\n\napp rodando e ouvindo na porta 4200\n\n');

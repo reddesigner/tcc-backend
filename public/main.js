@@ -34,7 +34,9 @@ webpackEmptyAsyncContext.id = "./src/$$_lazy_route_resource lazy recursive";
 __webpack_require__.r(__webpack_exports__);
 /* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "TokenInterceptor", function() { return TokenInterceptor; });
 /* harmony import */ var _angular_core__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! @angular/core */ "./node_modules/@angular/core/fesm5/core.js");
-/* harmony import */ var _service_auth_service__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../service/auth.service */ "./src/app/_controllers/auth/service/auth.service.ts");
+/* harmony import */ var rxjs_operators__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! rxjs/operators */ "./node_modules/rxjs/_esm5/operators/index.js");
+/* harmony import */ var _angular_common_http__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! @angular/common/http */ "./node_modules/@angular/common/fesm5/http.js");
+/* harmony import */ var _service_auth_service__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ../service/auth.service */ "./src/app/_controllers/auth/service/auth.service.ts");
 var __decorate = (undefined && undefined.__decorate) || function (decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -46,20 +48,27 @@ var __metadata = (undefined && undefined.__metadata) || function (k, v) {
 };
 
 
+
+
 var TokenInterceptor = /** @class */ (function () {
     function TokenInterceptor(auth) {
         this.auth = auth;
     }
     TokenInterceptor.prototype.intercept = function (request, next) {
+        var _this = this;
+        var started = Date.now();
+        var ok;
+        //var serverUrl = 'http://localhost:3000/';
         var serverUrl = 'http://localhost:4200/';
         //var serverUrl = 'http://ec2-18-228-31-157.sa-east-1.compute.amazonaws.com:4200/';
         request = request.clone({
-            url: serverUrl + request.url,
             setHeaders: {
-                'Content-Type': 'application/json',
-                Authorization: "Bearer " + this.auth.getToken(),
+                'observe': 'response',
+                'content-type': 'application/json',
+                'authorization': "Bearer " + this.auth.getToken(),
                 'x-access-token': "" + this.auth.getToken()
-            }
+            },
+            url: serverUrl + request.url,
         });
         /*
         'Content-Type': 'application/json'
@@ -67,13 +76,116 @@ var TokenInterceptor = /** @class */ (function () {
         'Content-Type': 'form-data'
         if POST change to: application/x-www-form-urlencoded
         };*/
-        return next.handle(request);
+        // return next.handle(request);
+        return next.handle(request)
+            .pipe(Object(rxjs_operators__WEBPACK_IMPORTED_MODULE_1__["tap"])(
+        // Succeeds when there is a response; ignore other events
+        function (event) {
+            ok = event instanceof _angular_common_http__WEBPACK_IMPORTED_MODULE_2__["HttpResponse"] ? 'sucesso' : '';
+            console.log('auth.interceptor.ts ----- evento sucesso ', event);
+            if (event['headers']) {
+                //console.log('------------------------ --------------------- --------------------');
+                //console.log('auth.interceptor.ts -----', event['headers'].getAll('X-Powered-By'));
+                console.log('auth.interceptor.ts -----', event['headers'].getAll('x-permissions'));
+                //console.log('------------------------ --------------------- --------------------');
+                // envia as permissões para serviço de autenticação
+                _this.auth.setPermissions(event['headers'].get('x-permissions'));
+            }
+        }, 
+        // Operation failed; error is an HttpErrorResponse
+        function (error) {
+            ok = 'falhou';
+            console.error('auth.interceptor.ts ----- evento error', error); // se der erro, tipo 400, passa aqui com a msg... ler msg e decidir o que fazer...
+            if (error.message && error.message == 'Http failure response for (unknown url): 0 Unknown Error') {
+                //
+                error.error.message = "Erro desconhecido";
+                error.error.type = "error";
+                //console.error('auth.interceptor.ts ----- erro desconhecido... servidor inativo?...');
+            }
+            if (error.body && error.body.action == 'logout') {
+                // do logout
+                //console.error('auth.interceptor.ts ----- servidor manda ação customizada de logout');
+            }
+            if (error.error && error.error.type == 'error') {
+                //console.error('auth.interceptor.ts ----- Mensagem do servidor: ' + error.error.message);
+            }
+        }), 
+        // Log when response observable either completes or errors
+        Object(rxjs_operators__WEBPACK_IMPORTED_MODULE_1__["finalize"])(function () {
+            var elapsed = Date.now() - started;
+            var msg = request.method + " \"" + request.urlWithParams + "\" " + ok + " em " + elapsed + " ms.";
+            //console.log('auth.interceptor.ts ----- HTTP Response: ' + msg + ' | objeto Request:', request);
+        }));
     };
     TokenInterceptor = __decorate([
         Object(_angular_core__WEBPACK_IMPORTED_MODULE_0__["Injectable"])(),
-        __metadata("design:paramtypes", [_service_auth_service__WEBPACK_IMPORTED_MODULE_1__["AuthService"]])
+        __metadata("design:paramtypes", [_service_auth_service__WEBPACK_IMPORTED_MODULE_3__["AuthService"]])
     ], TokenInterceptor);
     return TokenInterceptor;
+}());
+
+
+
+/***/ }),
+
+/***/ "./src/app/_controllers/auth/service/auth-guard.service.ts":
+/*!*****************************************************************!*\
+  !*** ./src/app/_controllers/auth/service/auth-guard.service.ts ***!
+  \*****************************************************************/
+/*! exports provided: AuthGuardService */
+/***/ (function(module, __webpack_exports__, __webpack_require__) {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "AuthGuardService", function() { return AuthGuardService; });
+/* harmony import */ var _angular_core__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! @angular/core */ "./node_modules/@angular/core/fesm5/core.js");
+/* harmony import */ var _angular_router__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! @angular/router */ "./node_modules/@angular/router/fesm5/router.js");
+/* harmony import */ var _auth_service__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./auth.service */ "./src/app/_controllers/auth/service/auth.service.ts");
+var __decorate = (undefined && undefined.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __metadata = (undefined && undefined.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+
+
+
+var AuthGuardService = /** @class */ (function () {
+    function AuthGuardService(auth, router) {
+        this.auth = auth;
+        this.router = router;
+    }
+    AuthGuardService.prototype.canActivate = function (route, state) {
+        //console.log('authGuard.service --- método canActivate');
+        var url = state.url;
+        return this.checkLogIn(url);
+    };
+    AuthGuardService.prototype.checkLogIn = function (url) {
+        if (this.auth.isAuthenticated()) {
+            console.log('authGuard.service ----- is logged in | has permission:', this.auth.getPermissionForRoute(url));
+            // checar se tem a permissão...
+            if (this.auth.getPermissionForRoute(url))
+                return true;
+            else
+                return false;
+        }
+        // Store the attempted URL for redirecting
+        this.auth.redirectUrl = url;
+        // Navigate to the login page with extras
+        this.router.navigate(['/login']);
+        return true;
+    };
+    AuthGuardService = __decorate([
+        Object(_angular_core__WEBPACK_IMPORTED_MODULE_0__["Injectable"])({
+            providedIn: 'root'
+        }),
+        __metadata("design:paramtypes", [_auth_service__WEBPACK_IMPORTED_MODULE_2__["AuthService"],
+            _angular_router__WEBPACK_IMPORTED_MODULE_1__["Router"]])
+    ], AuthGuardService);
+    return AuthGuardService;
 }());
 
 
@@ -91,6 +203,10 @@ var TokenInterceptor = /** @class */ (function () {
 __webpack_require__.r(__webpack_exports__);
 /* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "AuthService", function() { return AuthService; });
 /* harmony import */ var _angular_core__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! @angular/core */ "./node_modules/@angular/core/fesm5/core.js");
+/* harmony import */ var _angular_common_http__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! @angular/common/http */ "./node_modules/@angular/common/fesm5/http.js");
+/* harmony import */ var rxjs__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! rxjs */ "./node_modules/rxjs/_esm5/index.js");
+/* harmony import */ var rxjs_operators__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! rxjs/operators */ "./node_modules/rxjs/_esm5/operators/index.js");
+/* harmony import */ var _message_service_message_service__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ../../message/service/message.service */ "./src/app/_controllers/message/service/message.service.ts");
 var __decorate = (undefined && undefined.__decorate) || function (decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -101,25 +217,99 @@ var __metadata = (undefined && undefined.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 
+
+
+
+
 // import { decode } from 'jwt-decode';
-// jwt-code de angular2-jwt (instalado com npm) não funcionou
+// jwt-code de angular2-jwt (instalado com npm) não funcionou!
 var AuthService = /** @class */ (function () {
-    function AuthService() {
+    function AuthService(http, messageService) {
+        this.http = http;
+        this.messageService = messageService;
+        //public isLoggedIn = false;
+        this.currentUser = [];
+        this.permissionList = [];
+        this.authUrl = 'api/autenticar';
     }
     AuthService.prototype.getToken = function () {
-        return localStorage.getItem('token');
+        var tk = localStorage.getItem('x-token');
+        // TODO mehor a forma de tratar os 'tokens'... 
+        this.currentUser['name'] = localStorage.getItem('x-name');
+        this.currentUser['email'] = localStorage.getItem('x-email');
+        this.currentUser['role'] = localStorage.getItem('x-role');
+        return tk ? tk : '';
     };
     AuthService.prototype.isAuthenticated = function () {
         var tk = this.getToken();
-        // verificar se token está expirado
-        // return tokenNotExpired(null, tk);
+        //console.log('auth.service.ts ----- isAuthenticaed() tk é ', tk);
+        // TODO verificar se token está expirado
         return tk ? true : false;
+    };
+    AuthService.prototype.setPermissions = function (list) {
+        localStorage.setItem('x-permissions', list);
+        if (list)
+            this.permissionList = list.split(',');
+    };
+    AuthService.prototype.getPermissionForRoute = function (url) {
+        if (this.permissionList.length == 0) {
+            this.permissionList = localStorage.getItem('x-permissions').split(',');
+        }
+        var ret = this.permissionList.find(function (el) {
+            // procura a url a que será navegada na lista de permissões
+            var t = (url.indexOf(el) == 0 || url.indexOf(el + '/') == 0);
+            return t;
+        });
+        //console.log('auth.service.js ----- getPermissions() return é '+ret+' ------>', this.permissionList);
+        //console.log('auth.service.js ----- teste 1', this.permissionList.indexOf('/projeto'));
+        return ret;
+    };
+    AuthService.prototype.login = function (model) {
+        var _this = this;
+        var pair = model;
+        //return this.http.post(this.authUrl, model);
+        return this.http.post(this.authUrl, pair).pipe(Object(rxjs_operators__WEBPACK_IMPORTED_MODULE_3__["tap"])(function (obj) {
+            //console.log('auth.service.ts ----- to aqui no login', obj);
+            //this.isLoggedIn = true;
+            var tk = obj['x-access-token'];
+            localStorage.setItem('x-token', tk);
+            localStorage.setItem('x-name', obj['x-user-name']);
+            localStorage.setItem('x-email', obj['x-user-email']);
+            localStorage.setItem('x-role', obj['x-user-role']);
+            _this.currentUser['name'] = obj['x-user-name'];
+            _this.currentUser['email'] = obj['x-user-email'];
+            _this.currentUser['role'] = obj['x-user-role'];
+        }), Object(rxjs_operators__WEBPACK_IMPORTED_MODULE_3__["catchError"])(this.handleError('login')));
+    };
+    AuthService.prototype.logout = function () {
+        //this.isLoggedIn = false;
+        //console.log('auth.service.ts ----- logout');
+        localStorage.removeItem('x-token');
+        localStorage.removeItem('x-permissions');
+        localStorage.removeItem('x-name');
+        localStorage.removeItem('x-email');
+        localStorage.removeItem('x-role');
+        this.currentUser = [];
+    };
+    AuthService.prototype.handleError = function (operation, result) {
+        var _this = this;
+        if (operation === void 0) { operation = 'Operação'; }
+        return function (error) {
+            console.error('handleError em auth.service', error);
+            if (error.error)
+                _this.messageService.error(error.error.message, true);
+            else
+                _this.messageService.error('Erro indefinido. [aut.serv.' + operation + ']', true);
+            // retorna um resultado vazio para app continuar rodando
+            return Object(rxjs__WEBPACK_IMPORTED_MODULE_2__["of"])(result);
+        };
     };
     AuthService = __decorate([
         Object(_angular_core__WEBPACK_IMPORTED_MODULE_0__["Injectable"])({
             providedIn: 'root'
         }),
-        __metadata("design:paramtypes", [])
+        __metadata("design:paramtypes", [_angular_common_http__WEBPACK_IMPORTED_MODULE_1__["HttpClient"],
+            _message_service_message_service__WEBPACK_IMPORTED_MODULE_4__["MessageService"]])
     ], AuthService);
     return AuthService;
 }());
@@ -434,25 +624,27 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "AppRoutingModule", function() { return AppRoutingModule; });
 /* harmony import */ var _angular_core__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! @angular/core */ "./node_modules/@angular/core/fesm5/core.js");
 /* harmony import */ var _angular_router__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! @angular/router */ "./node_modules/@angular/router/fesm5/router.js");
-/* harmony import */ var _home_home_component__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./home/home.component */ "./src/app/home/home.component.ts");
-/* harmony import */ var _projeto_list_projeto_list_component__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ./projeto-list/projeto-list.component */ "./src/app/projeto-list/projeto-list.component.ts");
-/* harmony import */ var _projeto_detail_projeto_detail_component__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ./projeto-detail/projeto-detail.component */ "./src/app/projeto-detail/projeto-detail.component.ts");
-/* harmony import */ var _projeto_create_projeto_create_component__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ./projeto-create/projeto-create.component */ "./src/app/projeto-create/projeto-create.component.ts");
-/* harmony import */ var _projeto_edit_projeto_edit_component__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ./projeto-edit/projeto-edit.component */ "./src/app/projeto-edit/projeto-edit.component.ts");
-/* harmony import */ var _projeto_indicador_projeto_indicador_component__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! ./projeto-indicador/projeto-indicador.component */ "./src/app/projeto-indicador/projeto-indicador.component.ts");
-/* harmony import */ var _projeto_indicador_fase_projeto_indicador_fase_component__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! ./projeto-indicador-fase/projeto-indicador-fase.component */ "./src/app/projeto-indicador-fase/projeto-indicador-fase.component.ts");
-/* harmony import */ var _projeto_equipe_projeto_equipe_component__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! ./projeto-equipe/projeto-equipe.component */ "./src/app/projeto-equipe/projeto-equipe.component.ts");
-/* harmony import */ var _projeto_status_projeto_status_component__WEBPACK_IMPORTED_MODULE_10__ = __webpack_require__(/*! ./projeto-status/projeto-status.component */ "./src/app/projeto-status/projeto-status.component.ts");
-/* harmony import */ var _indicador_list_indicador_list_component__WEBPACK_IMPORTED_MODULE_11__ = __webpack_require__(/*! ./indicador-list/indicador-list.component */ "./src/app/indicador-list/indicador-list.component.ts");
-/* harmony import */ var _indicador_create_indicador_create_component__WEBPACK_IMPORTED_MODULE_12__ = __webpack_require__(/*! ./indicador-create/indicador-create.component */ "./src/app/indicador-create/indicador-create.component.ts");
-/* harmony import */ var _indicador_detail_indicador_detail_component__WEBPACK_IMPORTED_MODULE_13__ = __webpack_require__(/*! ./indicador-detail/indicador-detail.component */ "./src/app/indicador-detail/indicador-detail.component.ts");
-/* harmony import */ var _indicador_edit_indicador_edit_component__WEBPACK_IMPORTED_MODULE_14__ = __webpack_require__(/*! ./indicador-edit/indicador-edit.component */ "./src/app/indicador-edit/indicador-edit.component.ts");
-/* harmony import */ var _usuario_list_usuario_list_component__WEBPACK_IMPORTED_MODULE_15__ = __webpack_require__(/*! ./usuario-list/usuario-list.component */ "./src/app/usuario-list/usuario-list.component.ts");
-/* harmony import */ var _usuario_create_usuario_create_component__WEBPACK_IMPORTED_MODULE_16__ = __webpack_require__(/*! ./usuario-create/usuario-create.component */ "./src/app/usuario-create/usuario-create.component.ts");
-/* harmony import */ var _usuario_edit_usuario_edit_component__WEBPACK_IMPORTED_MODULE_17__ = __webpack_require__(/*! ./usuario-edit/usuario-edit.component */ "./src/app/usuario-edit/usuario-edit.component.ts");
-/* harmony import */ var _usuario_detail_usuario_detail_component__WEBPACK_IMPORTED_MODULE_18__ = __webpack_require__(/*! ./usuario-detail/usuario-detail.component */ "./src/app/usuario-detail/usuario-detail.component.ts");
-/* harmony import */ var _permissao_list_permissao_list_component__WEBPACK_IMPORTED_MODULE_19__ = __webpack_require__(/*! ./permissao-list/permissao-list.component */ "./src/app/permissao-list/permissao-list.component.ts");
-/* harmony import */ var _relatorio_list_relatorio_list_component__WEBPACK_IMPORTED_MODULE_20__ = __webpack_require__(/*! ./relatorio-list/relatorio-list.component */ "./src/app/relatorio-list/relatorio-list.component.ts");
+/* harmony import */ var _controllers_auth_service_auth_guard_service__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./_controllers/auth/service/auth-guard.service */ "./src/app/_controllers/auth/service/auth-guard.service.ts");
+/* harmony import */ var _autenticar_login_component__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ./autenticar/login.component */ "./src/app/autenticar/login.component.ts");
+/* harmony import */ var _home_home_component__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ./home/home.component */ "./src/app/home/home.component.ts");
+/* harmony import */ var _projeto_list_projeto_list_component__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ./projeto-list/projeto-list.component */ "./src/app/projeto-list/projeto-list.component.ts");
+/* harmony import */ var _projeto_detail_projeto_detail_component__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ./projeto-detail/projeto-detail.component */ "./src/app/projeto-detail/projeto-detail.component.ts");
+/* harmony import */ var _projeto_create_projeto_create_component__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! ./projeto-create/projeto-create.component */ "./src/app/projeto-create/projeto-create.component.ts");
+/* harmony import */ var _projeto_edit_projeto_edit_component__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! ./projeto-edit/projeto-edit.component */ "./src/app/projeto-edit/projeto-edit.component.ts");
+/* harmony import */ var _projeto_indicador_projeto_indicador_component__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! ./projeto-indicador/projeto-indicador.component */ "./src/app/projeto-indicador/projeto-indicador.component.ts");
+/* harmony import */ var _projeto_indicador_fase_projeto_indicador_fase_component__WEBPACK_IMPORTED_MODULE_10__ = __webpack_require__(/*! ./projeto-indicador-fase/projeto-indicador-fase.component */ "./src/app/projeto-indicador-fase/projeto-indicador-fase.component.ts");
+/* harmony import */ var _projeto_equipe_projeto_equipe_component__WEBPACK_IMPORTED_MODULE_11__ = __webpack_require__(/*! ./projeto-equipe/projeto-equipe.component */ "./src/app/projeto-equipe/projeto-equipe.component.ts");
+/* harmony import */ var _projeto_status_projeto_status_component__WEBPACK_IMPORTED_MODULE_12__ = __webpack_require__(/*! ./projeto-status/projeto-status.component */ "./src/app/projeto-status/projeto-status.component.ts");
+/* harmony import */ var _indicador_list_indicador_list_component__WEBPACK_IMPORTED_MODULE_13__ = __webpack_require__(/*! ./indicador-list/indicador-list.component */ "./src/app/indicador-list/indicador-list.component.ts");
+/* harmony import */ var _indicador_create_indicador_create_component__WEBPACK_IMPORTED_MODULE_14__ = __webpack_require__(/*! ./indicador-create/indicador-create.component */ "./src/app/indicador-create/indicador-create.component.ts");
+/* harmony import */ var _indicador_detail_indicador_detail_component__WEBPACK_IMPORTED_MODULE_15__ = __webpack_require__(/*! ./indicador-detail/indicador-detail.component */ "./src/app/indicador-detail/indicador-detail.component.ts");
+/* harmony import */ var _indicador_edit_indicador_edit_component__WEBPACK_IMPORTED_MODULE_16__ = __webpack_require__(/*! ./indicador-edit/indicador-edit.component */ "./src/app/indicador-edit/indicador-edit.component.ts");
+/* harmony import */ var _usuario_list_usuario_list_component__WEBPACK_IMPORTED_MODULE_17__ = __webpack_require__(/*! ./usuario-list/usuario-list.component */ "./src/app/usuario-list/usuario-list.component.ts");
+/* harmony import */ var _usuario_create_usuario_create_component__WEBPACK_IMPORTED_MODULE_18__ = __webpack_require__(/*! ./usuario-create/usuario-create.component */ "./src/app/usuario-create/usuario-create.component.ts");
+/* harmony import */ var _usuario_edit_usuario_edit_component__WEBPACK_IMPORTED_MODULE_19__ = __webpack_require__(/*! ./usuario-edit/usuario-edit.component */ "./src/app/usuario-edit/usuario-edit.component.ts");
+/* harmony import */ var _usuario_detail_usuario_detail_component__WEBPACK_IMPORTED_MODULE_20__ = __webpack_require__(/*! ./usuario-detail/usuario-detail.component */ "./src/app/usuario-detail/usuario-detail.component.ts");
+/* harmony import */ var _permissao_list_permissao_list_component__WEBPACK_IMPORTED_MODULE_21__ = __webpack_require__(/*! ./permissao-list/permissao-list.component */ "./src/app/permissao-list/permissao-list.component.ts");
+/* harmony import */ var _relatorio_list_relatorio_list_component__WEBPACK_IMPORTED_MODULE_22__ = __webpack_require__(/*! ./relatorio-list/relatorio-list.component */ "./src/app/relatorio-list/relatorio-list.component.ts");
 var __decorate = (undefined && undefined.__decorate) || function (decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -460,7 +652,8 @@ var __decorate = (undefined && undefined.__decorate) || function (decorators, ta
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
 
-// import { CommonModule } from '@angular/common';
+
+ // guarda de rotas
 
 
 
@@ -481,28 +674,29 @@ var __decorate = (undefined && undefined.__decorate) || function (decorators, ta
 
 
 
-/*import {} from '';*/
 var routes = [
-    { path: 'projeto', component: _projeto_list_projeto_list_component__WEBPACK_IMPORTED_MODULE_3__["ProjetoListComponent"] },
-    { path: 'projeto/create', component: _projeto_create_projeto_create_component__WEBPACK_IMPORTED_MODULE_5__["ProjetoCreateComponent"] },
-    { path: 'projeto/detail/:id', component: _projeto_detail_projeto_detail_component__WEBPACK_IMPORTED_MODULE_4__["ProjetoDetailComponent"] },
-    { path: 'projeto/edit/:id', component: _projeto_edit_projeto_edit_component__WEBPACK_IMPORTED_MODULE_6__["ProjetoEditComponent"] },
-    { path: 'projeto/indicador/:id', component: _projeto_indicador_projeto_indicador_component__WEBPACK_IMPORTED_MODULE_7__["ProjetoIndicadorComponent"] },
-    { path: 'projeto/indicador-fase/:id', component: _projeto_indicador_fase_projeto_indicador_fase_component__WEBPACK_IMPORTED_MODULE_8__["ProjetoIndicadorFaseComponent"] },
-    { path: 'projeto/equipe/:id', component: _projeto_equipe_projeto_equipe_component__WEBPACK_IMPORTED_MODULE_9__["ProjetoEquipeComponent"] },
-    { path: 'projeto/status/:id', component: _projeto_status_projeto_status_component__WEBPACK_IMPORTED_MODULE_10__["ProjetoStatusComponent"] },
-    { path: 'usuario', component: _usuario_list_usuario_list_component__WEBPACK_IMPORTED_MODULE_15__["UsuarioListComponent"] },
-    { path: 'usuario/create', component: _usuario_create_usuario_create_component__WEBPACK_IMPORTED_MODULE_16__["UsuarioCreateComponent"] },
-    { path: 'usuario/detail/:id', component: _usuario_detail_usuario_detail_component__WEBPACK_IMPORTED_MODULE_18__["UsuarioDetailComponent"] },
-    { path: 'usuario/edit/:id', component: _usuario_edit_usuario_edit_component__WEBPACK_IMPORTED_MODULE_17__["UsuarioEditComponent"] },
-    { path: 'indicador', component: _indicador_list_indicador_list_component__WEBPACK_IMPORTED_MODULE_11__["IndicadorListComponent"] },
-    { path: 'indicador/create', component: _indicador_create_indicador_create_component__WEBPACK_IMPORTED_MODULE_12__["IndicadorCreateComponent"] },
-    { path: 'indicador/detail/:id', component: _indicador_detail_indicador_detail_component__WEBPACK_IMPORTED_MODULE_13__["IndicadorDetailComponent"] },
-    { path: 'indicador/edit/:id', component: _indicador_edit_indicador_edit_component__WEBPACK_IMPORTED_MODULE_14__["IndicadorEditComponent"] },
-    { path: 'permissao', component: _permissao_list_permissao_list_component__WEBPACK_IMPORTED_MODULE_19__["PermissaoListComponent"] },
-    { path: 'relatorio', component: _relatorio_list_relatorio_list_component__WEBPACK_IMPORTED_MODULE_20__["RelatorioListComponent"] },
-    { path: 'home', component: _home_home_component__WEBPACK_IMPORTED_MODULE_2__["HomeComponent"] },
-    { path: '', redirectTo: 'home', pathMatch: 'full' }
+    { path: 'projeto', component: _projeto_list_projeto_list_component__WEBPACK_IMPORTED_MODULE_5__["ProjetoListComponent"], canActivate: [_controllers_auth_service_auth_guard_service__WEBPACK_IMPORTED_MODULE_2__["AuthGuardService"]] },
+    { path: 'projeto/create', component: _projeto_create_projeto_create_component__WEBPACK_IMPORTED_MODULE_7__["ProjetoCreateComponent"], canActivate: [_controllers_auth_service_auth_guard_service__WEBPACK_IMPORTED_MODULE_2__["AuthGuardService"]] },
+    { path: 'projeto/detail/:id', component: _projeto_detail_projeto_detail_component__WEBPACK_IMPORTED_MODULE_6__["ProjetoDetailComponent"], canActivate: [_controllers_auth_service_auth_guard_service__WEBPACK_IMPORTED_MODULE_2__["AuthGuardService"]] },
+    { path: 'projeto/edit/:id', component: _projeto_edit_projeto_edit_component__WEBPACK_IMPORTED_MODULE_8__["ProjetoEditComponent"], canActivate: [_controllers_auth_service_auth_guard_service__WEBPACK_IMPORTED_MODULE_2__["AuthGuardService"]] },
+    { path: 'projeto/indicador/:id', component: _projeto_indicador_projeto_indicador_component__WEBPACK_IMPORTED_MODULE_9__["ProjetoIndicadorComponent"], canActivate: [_controllers_auth_service_auth_guard_service__WEBPACK_IMPORTED_MODULE_2__["AuthGuardService"]] },
+    { path: 'projeto/indicador-fase/:id', component: _projeto_indicador_fase_projeto_indicador_fase_component__WEBPACK_IMPORTED_MODULE_10__["ProjetoIndicadorFaseComponent"], canActivate: [_controllers_auth_service_auth_guard_service__WEBPACK_IMPORTED_MODULE_2__["AuthGuardService"]] },
+    { path: 'projeto/equipe/:id', component: _projeto_equipe_projeto_equipe_component__WEBPACK_IMPORTED_MODULE_11__["ProjetoEquipeComponent"], canActivate: [_controllers_auth_service_auth_guard_service__WEBPACK_IMPORTED_MODULE_2__["AuthGuardService"]] },
+    { path: 'projeto/status/:id', component: _projeto_status_projeto_status_component__WEBPACK_IMPORTED_MODULE_12__["ProjetoStatusComponent"], canActivate: [_controllers_auth_service_auth_guard_service__WEBPACK_IMPORTED_MODULE_2__["AuthGuardService"]] },
+    { path: 'usuario', component: _usuario_list_usuario_list_component__WEBPACK_IMPORTED_MODULE_17__["UsuarioListComponent"], canActivate: [_controllers_auth_service_auth_guard_service__WEBPACK_IMPORTED_MODULE_2__["AuthGuardService"]] },
+    { path: 'usuario/create', component: _usuario_create_usuario_create_component__WEBPACK_IMPORTED_MODULE_18__["UsuarioCreateComponent"], canActivate: [_controllers_auth_service_auth_guard_service__WEBPACK_IMPORTED_MODULE_2__["AuthGuardService"]] },
+    { path: 'usuario/detail/:id', component: _usuario_detail_usuario_detail_component__WEBPACK_IMPORTED_MODULE_20__["UsuarioDetailComponent"], canActivate: [_controllers_auth_service_auth_guard_service__WEBPACK_IMPORTED_MODULE_2__["AuthGuardService"]] },
+    { path: 'usuario/edit/:id', component: _usuario_edit_usuario_edit_component__WEBPACK_IMPORTED_MODULE_19__["UsuarioEditComponent"], canActivate: [_controllers_auth_service_auth_guard_service__WEBPACK_IMPORTED_MODULE_2__["AuthGuardService"]] },
+    { path: 'indicador', component: _indicador_list_indicador_list_component__WEBPACK_IMPORTED_MODULE_13__["IndicadorListComponent"], canActivate: [_controllers_auth_service_auth_guard_service__WEBPACK_IMPORTED_MODULE_2__["AuthGuardService"]] },
+    { path: 'indicador/create', component: _indicador_create_indicador_create_component__WEBPACK_IMPORTED_MODULE_14__["IndicadorCreateComponent"], canActivate: [_controllers_auth_service_auth_guard_service__WEBPACK_IMPORTED_MODULE_2__["AuthGuardService"]] },
+    { path: 'indicador/detail/:id', component: _indicador_detail_indicador_detail_component__WEBPACK_IMPORTED_MODULE_15__["IndicadorDetailComponent"], canActivate: [_controllers_auth_service_auth_guard_service__WEBPACK_IMPORTED_MODULE_2__["AuthGuardService"]] },
+    { path: 'indicador/edit/:id', component: _indicador_edit_indicador_edit_component__WEBPACK_IMPORTED_MODULE_16__["IndicadorEditComponent"], canActivate: [_controllers_auth_service_auth_guard_service__WEBPACK_IMPORTED_MODULE_2__["AuthGuardService"]] },
+    { path: 'permissao', component: _permissao_list_permissao_list_component__WEBPACK_IMPORTED_MODULE_21__["PermissaoListComponent"], canActivate: [_controllers_auth_service_auth_guard_service__WEBPACK_IMPORTED_MODULE_2__["AuthGuardService"]] },
+    { path: 'relatorio', component: _relatorio_list_relatorio_list_component__WEBPACK_IMPORTED_MODULE_22__["RelatorioListComponent"], canActivate: [_controllers_auth_service_auth_guard_service__WEBPACK_IMPORTED_MODULE_2__["AuthGuardService"]] },
+    { path: 'home', component: _home_home_component__WEBPACK_IMPORTED_MODULE_4__["HomeComponent"], canActivate: [_controllers_auth_service_auth_guard_service__WEBPACK_IMPORTED_MODULE_2__["AuthGuardService"]] },
+    { path: 'login', component: _autenticar_login_component__WEBPACK_IMPORTED_MODULE_3__["LoginComponent"] },
+    { path: '', redirectTo: 'home', pathMatch: 'full' },
+    { path: '**', redirectTo: 'home', pathMatch: 'full' } // não deveria ser uma página padrão tipo 404?
 ];
 var AppRoutingModule = /** @class */ (function () {
     function AppRoutingModule() {
@@ -544,7 +738,7 @@ module.exports = ""
 /*! no static exports found */
 /***/ (function(module, exports) {
 
-module.exports = "<nav class=\"navbar navbar-expand-lg navbar-dark bg-dark\"><!-- .bg-light -->\r\n  <a class=\"navbar-brand\" routerLink=\"/home\">Portfolio de Projetos</a>\r\n  <button class=\"navbar-toggler\" type=\"button\" data-toggle=\"collapse\" data-target=\"#navbarSupportedContent\" aria-controls=\"navbarSupportedContent\" aria-expanded=\"false\" aria-label=\"Toggle navigation\">\r\n    <span class=\"navbar-toggler-icon\"></span>\r\n  </button>\r\n  <div class=\"collapse navbar-collapse\" id=\"navbarSupportedContent\">\r\n    <ul class=\"navbar-nav mr-auto\">\r\n    <!--\r\n      <li class=\"nav-item active\">\r\n        <a class=\"nav-link\" href=\"#\">Home <span class=\"sr-only\">(current)</span></a>\r\n      </li>\r\n      <li class=\"nav-item\">\r\n        <a class=\"nav-link\" href=\"#\">Link</a>\r\n      </li>\r\n      <li class=\"nav-item\">\r\n        <a class=\"nav-link disabled\" href=\"#\">Disabled</a>\r\n      </li>\r\n    -->\r\n      <li class=\"nav-item dropdown\">\r\n        <a class=\"nav-link dropdown-toggle\" href=\"#\" id=\"navbarDropdown\" role=\"button\" data-toggle=\"dropdown\" aria-haspopup=\"true\" aria-expanded=\"false\">\r\n          Projetos\r\n        </a>\r\n        <div class=\"dropdown-menu\" aria-labelledby=\"navbarDropdown\">\r\n          <a class=\"dropdown-item\" routerLink=\"/projeto/create\">Criar Projeto</a>\r\n        <!--\r\n          <a class=\"dropdown-item\" routerLink=\"/projeto/indicador\">Indicadores de Projetos</a>\r\n          <a class=\"dropdown-item\" routerLink=\"/projeto/indicador-fase\">Indicadores de Projetos por Fase</a>\r\n          <a class=\"dropdown-item\" routerLink=\"/projeto/equipe\">Equipes de Projetos</a>\r\n        -->\r\n          <div class=\"dropdown-divider\"></div>\r\n          <a class=\"dropdown-item\" routerLink=\"/projeto\">Listar todos projetos</a>\r\n        </div>\r\n      </li>\r\n      <li class=\"nav-item dropdown\">\r\n        <a class=\"nav-link dropdown-toggle\" href=\"#\" id=\"navbarDropdown2\" role=\"button\" data-toggle=\"dropdown\" aria-haspopup=\"true\" aria-expanded=\"false\">\r\n          Usuários\r\n        </a>\r\n        <div class=\"dropdown-menu\" aria-labelledby=\"navbarDropdown2\">\r\n          <a class=\"dropdown-item\" routerLink=\"/usuario/create\">Criar Usuário</a>\r\n          <div class=\"dropdown-divider\"></div>\r\n          <a class=\"dropdown-item\" routerLink=\"/usuario\">Listar todos usuários</a>\r\n        </div>\r\n      </li>\r\n      <li class=\"nav-item dropdown\">\r\n        <a class=\"nav-link dropdown-toggle\" href=\"#\" id=\"navbarDropdown3\" role=\"button\" data-toggle=\"dropdown\" aria-haspopup=\"true\" aria-expanded=\"false\">\r\n          Indicadores\r\n        </a>\r\n        <div class=\"dropdown-menu\" aria-labelledby=\"navbarDropdown3\">\r\n          <a class=\"dropdown-item\" routerLink=\"/indicador/create\">Criar Indicador</a>\r\n          <div class=\"dropdown-divider\"></div>\r\n          <a class=\"dropdown-item\" routerLink=\"/indicador\">Listar todos indicadores</a>\r\n        </div>\r\n      </li>\r\n      <li class=\"nav-item\">\r\n          <a class=\"nav-link\" routerLink=\"/permissao\">Permissões de Telas</a>\r\n        </li>\r\n      <li class=\"nav-item\">\r\n        <a class=\"nav-link\" routerLink=\"/relatorio\">Relatório de Projetos</a>\r\n      </li>\r\n    </ul>\r\n    <!--\r\n    <div class=\"form-inline my-2 my-lg-0\">\r\n      <input class=\"form-control mr-sm-2\" type=\"search\" placeholder=\"Search\" aria-label=\"Search\">\r\n      <button class=\"btn btn-primary my-2 my-sm-0\" type=\"button\">Search</button> .bg-light \r\n    </div>\r\n    -->\r\n  </div>\r\n</nav>\r\n<!--\r\n<p>Portifólio de Projetos</p>\r\n-->\r\n<br>\r\n<router-outlet></router-outlet>\r\n<footer class=\"bg-dark\">PP - Projeto Portfolio &reg;</footer>\r\n<app-message></app-message>"
+module.exports = "<nav class=\"navbar navbar-expand-lg navbar-dark bg-dark\"><!-- .bg-light -->\r\n  <a class=\"navbar-brand\" routerLink=\"/home\">Portfolio <span class=\"small\">de</span> Projetos</a>\r\n  <button class=\"navbar-toggler\" type=\"button\" data-toggle=\"collapse\" data-target=\"#navbarSupportedContent\" aria-controls=\"navbarSupportedContent\" aria-expanded=\"false\" aria-label=\"Toggle navigation\">\r\n    <span class=\"navbar-toggler-icon\"></span>\r\n  </button>\r\n  <div class=\"collapse navbar-collapse\" id=\"navbarSupportedContent\">\r\n    <ul class=\"navbar-nav mr-auto\">\r\n    <!--\r\n      <li class=\"nav-item active\">\r\n        <a class=\"nav-link\" href=\"#\">Home <span class=\"sr-only\">(current)</span></a>\r\n      </li>\r\n      <li class=\"nav-item\">\r\n        <a class=\"nav-link\" href=\"#\">Link</a>\r\n      </li>\r\n      <li class=\"nav-item\">\r\n        <a class=\"nav-link disabled\" href=\"#\">Disabled</a>\r\n      </li>\r\n    -->\r\n      <li class=\"nav-item dropdown\" *ngIf=\"auth.permissionList.indexOf('/projeto') >= 0\">\r\n        <a class=\"nav-link dropdown-toggle\" href=\"#\" id=\"navbarDropdown\" role=\"button\" data-toggle=\"dropdown\" aria-haspopup=\"true\" aria-expanded=\"false\">\r\n          Projetos\r\n        </a>\r\n        <div class=\"dropdown-menu\" aria-labelledby=\"navbarDropdown\">\r\n          <a class=\"dropdown-item\" routerLink=\"/projeto/create\">Criar Projeto</a>\r\n        <!--\r\n          <a class=\"dropdown-item\" routerLink=\"/projeto/indicador\">Indicadores de Projetos</a>\r\n          <a class=\"dropdown-item\" routerLink=\"/projeto/indicador-fase\">Indicadores de Projetos por Fase</a>\r\n          <a class=\"dropdown-item\" routerLink=\"/projeto/equipe\">Equipes de Projetos</a>\r\n        -->\r\n          <div class=\"dropdown-divider\"></div>\r\n          <a class=\"dropdown-item\" routerLink=\"/projeto\">Listar todos projetos</a>\r\n        </div>\r\n      </li>\r\n      <li class=\"nav-item dropdown\" *ngIf=\"auth.permissionList.indexOf('/usuario') >= 0\">\r\n        <a class=\"nav-link dropdown-toggle\" href=\"#\" id=\"navbarDropdown2\" role=\"button\" data-toggle=\"dropdown\" aria-haspopup=\"true\" aria-expanded=\"false\">\r\n          Usuários\r\n        </a>\r\n        <div class=\"dropdown-menu\" aria-labelledby=\"navbarDropdown2\">\r\n          <a class=\"dropdown-item\" routerLink=\"/usuario/create\">Criar Usuário</a>\r\n          <div class=\"dropdown-divider\"></div>\r\n          <a class=\"dropdown-item\" routerLink=\"/usuario\">Listar todos usuários</a>\r\n        </div>\r\n      </li>\r\n      <li class=\"nav-item dropdown\" *ngIf=\"auth.permissionList.indexOf('/indicador') >= 0\">\r\n        <a class=\"nav-link dropdown-toggle\" href=\"#\" id=\"navbarDropdown3\" role=\"button\" data-toggle=\"dropdown\" aria-haspopup=\"true\" aria-expanded=\"false\">\r\n          Indicadores\r\n        </a>\r\n        <div class=\"dropdown-menu\" aria-labelledby=\"navbarDropdown3\">\r\n          <a class=\"dropdown-item\" routerLink=\"/indicador/create\">Criar Indicador</a>\r\n          <div class=\"dropdown-divider\"></div>\r\n          <a class=\"dropdown-item\" routerLink=\"/indicador\">Listar todos indicadores</a>\r\n        </div>\r\n      </li>\r\n      <li class=\"nav-item\" *ngIf=\"auth.permissionList.indexOf('/permissao') >= 0\">\r\n          <a class=\"nav-link\" routerLink=\"/permissao\">Permissões de Telas</a>\r\n        </li>\r\n      <li class=\"nav-item\" *ngIf=\"auth.permissionList.indexOf('/relatorio') >= 0\">\r\n        <a class=\"nav-link\" routerLink=\"/relatorio\">Relatório de Projetos</a>\r\n      </li>\r\n    </ul>\r\n    <div class=\"form-inline my-2 my-lg-0\" *ngIf=\"auth.currentUser.name\">\r\n      <!--\r\n      <input class=\"form-control mr-sm-2\" type=\"search\" placeholder=\"Search\" aria-label=\"Search\">\r\n      <button class=\"btn btn-primary my-2 my-sm-0\" type=\"button\">Search</button> .bg-light \r\n      -->\r\n      <span style=\"color:#fff; line-height: 1.2\">\r\n      <span>{{ auth.currentUser['name'] }}</span><br>\r\n      <small>{{ auth.currentUser['email'] }} - {{ auth.currentUser['role'] }}</small>\r\n      </span>\r\n      <button class=\"btn btn-secondary my-2 my-sm-0 btn-sm ml-3\" type=\"button\" (click)=\"onLogOut()\">Sair</button> <!-- .bg-light -->\r\n    </div>\r\n\r\n  </div>\r\n</nav>\r\n<!--\r\n<p>Portifólio de Projetos</p>\r\n-->\r\n<br>\r\n<router-outlet></router-outlet>\r\n<footer class=\"bg-dark\">PP - Projeto Portfolio &reg;</footer>\r\n<app-message></app-message>"
 
 /***/ }),
 
@@ -559,23 +753,37 @@ module.exports = "<nav class=\"navbar navbar-expand-lg navbar-dark bg-dark\"><!-
 __webpack_require__.r(__webpack_exports__);
 /* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "AppComponent", function() { return AppComponent; });
 /* harmony import */ var _angular_core__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! @angular/core */ "./node_modules/@angular/core/fesm5/core.js");
+/* harmony import */ var _controllers_auth_service_auth_service__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./_controllers/auth/service/auth.service */ "./src/app/_controllers/auth/service/auth.service.ts");
+/* harmony import */ var _angular_router__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! @angular/router */ "./node_modules/@angular/router/fesm5/router.js");
 var __decorate = (undefined && undefined.__decorate) || function (decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
     else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
     return c > 3 && r && Object.defineProperty(target, key, r), r;
 };
+var __metadata = (undefined && undefined.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+
+
 
 var AppComponent = /** @class */ (function () {
-    function AppComponent() {
-        this.title = 'app';
+    function AppComponent(auth, router) {
+        this.auth = auth;
+        this.router = router;
     }
+    AppComponent.prototype.onLogOut = function () {
+        this.auth.logout();
+        this.router.navigate(['/login']);
+    };
     AppComponent = __decorate([
         Object(_angular_core__WEBPACK_IMPORTED_MODULE_0__["Component"])({
             selector: 'app-root',
             template: __webpack_require__(/*! ./app.component.html */ "./src/app/app.component.html"),
             styles: [__webpack_require__(/*! ./app.component.css */ "./src/app/app.component.css")]
-        })
+        }),
+        __metadata("design:paramtypes", [_controllers_auth_service_auth_service__WEBPACK_IMPORTED_MODULE_1__["AuthService"],
+            _angular_router__WEBPACK_IMPORTED_MODULE_2__["Router"]])
     ], AppComponent);
     return AppComponent;
 }());
@@ -601,26 +809,27 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _controllers_auth_interceptor_auth_interceptor__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ./_controllers/auth/interceptor/auth.interceptor */ "./src/app/_controllers/auth/interceptor/auth.interceptor.ts");
 /* harmony import */ var _app_routing_module__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ./app-routing.module */ "./src/app/app-routing.module.ts");
 /* harmony import */ var _app_component__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ./app.component */ "./src/app/app.component.ts");
-/* harmony import */ var _home_home_component__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! ./home/home.component */ "./src/app/home/home.component.ts");
-/* harmony import */ var _projeto_list_projeto_list_component__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! ./projeto-list/projeto-list.component */ "./src/app/projeto-list/projeto-list.component.ts");
-/* harmony import */ var _projeto_detail_projeto_detail_component__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! ./projeto-detail/projeto-detail.component */ "./src/app/projeto-detail/projeto-detail.component.ts");
-/* harmony import */ var _projeto_create_projeto_create_component__WEBPACK_IMPORTED_MODULE_10__ = __webpack_require__(/*! ./projeto-create/projeto-create.component */ "./src/app/projeto-create/projeto-create.component.ts");
-/* harmony import */ var _projeto_edit_projeto_edit_component__WEBPACK_IMPORTED_MODULE_11__ = __webpack_require__(/*! ./projeto-edit/projeto-edit.component */ "./src/app/projeto-edit/projeto-edit.component.ts");
-/* harmony import */ var _projeto_indicador_projeto_indicador_component__WEBPACK_IMPORTED_MODULE_12__ = __webpack_require__(/*! ./projeto-indicador/projeto-indicador.component */ "./src/app/projeto-indicador/projeto-indicador.component.ts");
-/* harmony import */ var _projeto_indicador_fase_projeto_indicador_fase_component__WEBPACK_IMPORTED_MODULE_13__ = __webpack_require__(/*! ./projeto-indicador-fase/projeto-indicador-fase.component */ "./src/app/projeto-indicador-fase/projeto-indicador-fase.component.ts");
-/* harmony import */ var _projeto_equipe_projeto_equipe_component__WEBPACK_IMPORTED_MODULE_14__ = __webpack_require__(/*! ./projeto-equipe/projeto-equipe.component */ "./src/app/projeto-equipe/projeto-equipe.component.ts");
-/* harmony import */ var _projeto_status_projeto_status_component__WEBPACK_IMPORTED_MODULE_15__ = __webpack_require__(/*! ./projeto-status/projeto-status.component */ "./src/app/projeto-status/projeto-status.component.ts");
-/* harmony import */ var _usuario_list_usuario_list_component__WEBPACK_IMPORTED_MODULE_16__ = __webpack_require__(/*! ./usuario-list/usuario-list.component */ "./src/app/usuario-list/usuario-list.component.ts");
-/* harmony import */ var _usuario_create_usuario_create_component__WEBPACK_IMPORTED_MODULE_17__ = __webpack_require__(/*! ./usuario-create/usuario-create.component */ "./src/app/usuario-create/usuario-create.component.ts");
-/* harmony import */ var _usuario_edit_usuario_edit_component__WEBPACK_IMPORTED_MODULE_18__ = __webpack_require__(/*! ./usuario-edit/usuario-edit.component */ "./src/app/usuario-edit/usuario-edit.component.ts");
-/* harmony import */ var _usuario_detail_usuario_detail_component__WEBPACK_IMPORTED_MODULE_19__ = __webpack_require__(/*! ./usuario-detail/usuario-detail.component */ "./src/app/usuario-detail/usuario-detail.component.ts");
-/* harmony import */ var _indicador_list_indicador_list_component__WEBPACK_IMPORTED_MODULE_20__ = __webpack_require__(/*! ./indicador-list/indicador-list.component */ "./src/app/indicador-list/indicador-list.component.ts");
-/* harmony import */ var _indicador_create_indicador_create_component__WEBPACK_IMPORTED_MODULE_21__ = __webpack_require__(/*! ./indicador-create/indicador-create.component */ "./src/app/indicador-create/indicador-create.component.ts");
-/* harmony import */ var _indicador_detail_indicador_detail_component__WEBPACK_IMPORTED_MODULE_22__ = __webpack_require__(/*! ./indicador-detail/indicador-detail.component */ "./src/app/indicador-detail/indicador-detail.component.ts");
-/* harmony import */ var _indicador_edit_indicador_edit_component__WEBPACK_IMPORTED_MODULE_23__ = __webpack_require__(/*! ./indicador-edit/indicador-edit.component */ "./src/app/indicador-edit/indicador-edit.component.ts");
-/* harmony import */ var _permissao_list_permissao_list_component__WEBPACK_IMPORTED_MODULE_24__ = __webpack_require__(/*! ./permissao-list/permissao-list.component */ "./src/app/permissao-list/permissao-list.component.ts");
-/* harmony import */ var _relatorio_list_relatorio_list_component__WEBPACK_IMPORTED_MODULE_25__ = __webpack_require__(/*! ./relatorio-list/relatorio-list.component */ "./src/app/relatorio-list/relatorio-list.component.ts");
-/* harmony import */ var _controllers_message_component_message_component__WEBPACK_IMPORTED_MODULE_26__ = __webpack_require__(/*! ./_controllers/message/component/message.component */ "./src/app/_controllers/message/component/message.component.ts");
+/* harmony import */ var _autenticar_login_component__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! ./autenticar/login.component */ "./src/app/autenticar/login.component.ts");
+/* harmony import */ var _home_home_component__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! ./home/home.component */ "./src/app/home/home.component.ts");
+/* harmony import */ var _projeto_list_projeto_list_component__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! ./projeto-list/projeto-list.component */ "./src/app/projeto-list/projeto-list.component.ts");
+/* harmony import */ var _projeto_detail_projeto_detail_component__WEBPACK_IMPORTED_MODULE_10__ = __webpack_require__(/*! ./projeto-detail/projeto-detail.component */ "./src/app/projeto-detail/projeto-detail.component.ts");
+/* harmony import */ var _projeto_create_projeto_create_component__WEBPACK_IMPORTED_MODULE_11__ = __webpack_require__(/*! ./projeto-create/projeto-create.component */ "./src/app/projeto-create/projeto-create.component.ts");
+/* harmony import */ var _projeto_edit_projeto_edit_component__WEBPACK_IMPORTED_MODULE_12__ = __webpack_require__(/*! ./projeto-edit/projeto-edit.component */ "./src/app/projeto-edit/projeto-edit.component.ts");
+/* harmony import */ var _projeto_indicador_projeto_indicador_component__WEBPACK_IMPORTED_MODULE_13__ = __webpack_require__(/*! ./projeto-indicador/projeto-indicador.component */ "./src/app/projeto-indicador/projeto-indicador.component.ts");
+/* harmony import */ var _projeto_indicador_fase_projeto_indicador_fase_component__WEBPACK_IMPORTED_MODULE_14__ = __webpack_require__(/*! ./projeto-indicador-fase/projeto-indicador-fase.component */ "./src/app/projeto-indicador-fase/projeto-indicador-fase.component.ts");
+/* harmony import */ var _projeto_equipe_projeto_equipe_component__WEBPACK_IMPORTED_MODULE_15__ = __webpack_require__(/*! ./projeto-equipe/projeto-equipe.component */ "./src/app/projeto-equipe/projeto-equipe.component.ts");
+/* harmony import */ var _projeto_status_projeto_status_component__WEBPACK_IMPORTED_MODULE_16__ = __webpack_require__(/*! ./projeto-status/projeto-status.component */ "./src/app/projeto-status/projeto-status.component.ts");
+/* harmony import */ var _usuario_list_usuario_list_component__WEBPACK_IMPORTED_MODULE_17__ = __webpack_require__(/*! ./usuario-list/usuario-list.component */ "./src/app/usuario-list/usuario-list.component.ts");
+/* harmony import */ var _usuario_create_usuario_create_component__WEBPACK_IMPORTED_MODULE_18__ = __webpack_require__(/*! ./usuario-create/usuario-create.component */ "./src/app/usuario-create/usuario-create.component.ts");
+/* harmony import */ var _usuario_edit_usuario_edit_component__WEBPACK_IMPORTED_MODULE_19__ = __webpack_require__(/*! ./usuario-edit/usuario-edit.component */ "./src/app/usuario-edit/usuario-edit.component.ts");
+/* harmony import */ var _usuario_detail_usuario_detail_component__WEBPACK_IMPORTED_MODULE_20__ = __webpack_require__(/*! ./usuario-detail/usuario-detail.component */ "./src/app/usuario-detail/usuario-detail.component.ts");
+/* harmony import */ var _indicador_list_indicador_list_component__WEBPACK_IMPORTED_MODULE_21__ = __webpack_require__(/*! ./indicador-list/indicador-list.component */ "./src/app/indicador-list/indicador-list.component.ts");
+/* harmony import */ var _indicador_create_indicador_create_component__WEBPACK_IMPORTED_MODULE_22__ = __webpack_require__(/*! ./indicador-create/indicador-create.component */ "./src/app/indicador-create/indicador-create.component.ts");
+/* harmony import */ var _indicador_detail_indicador_detail_component__WEBPACK_IMPORTED_MODULE_23__ = __webpack_require__(/*! ./indicador-detail/indicador-detail.component */ "./src/app/indicador-detail/indicador-detail.component.ts");
+/* harmony import */ var _indicador_edit_indicador_edit_component__WEBPACK_IMPORTED_MODULE_24__ = __webpack_require__(/*! ./indicador-edit/indicador-edit.component */ "./src/app/indicador-edit/indicador-edit.component.ts");
+/* harmony import */ var _permissao_list_permissao_list_component__WEBPACK_IMPORTED_MODULE_25__ = __webpack_require__(/*! ./permissao-list/permissao-list.component */ "./src/app/permissao-list/permissao-list.component.ts");
+/* harmony import */ var _relatorio_list_relatorio_list_component__WEBPACK_IMPORTED_MODULE_26__ = __webpack_require__(/*! ./relatorio-list/relatorio-list.component */ "./src/app/relatorio-list/relatorio-list.component.ts");
+/* harmony import */ var _controllers_message_component_message_component__WEBPACK_IMPORTED_MODULE_27__ = __webpack_require__(/*! ./_controllers/message/component/message.component */ "./src/app/_controllers/message/component/message.component.ts");
 var __decorate = (undefined && undefined.__decorate) || function (decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -657,6 +866,7 @@ var __decorate = (undefined && undefined.__decorate) || function (decorators, ta
 
 
 
+
 var AppModule = /** @class */ (function () {
     function AppModule() {
     }
@@ -664,26 +874,27 @@ var AppModule = /** @class */ (function () {
         Object(_angular_core__WEBPACK_IMPORTED_MODULE_1__["NgModule"])({
             declarations: [
                 _app_component__WEBPACK_IMPORTED_MODULE_6__["AppComponent"],
-                _home_home_component__WEBPACK_IMPORTED_MODULE_7__["HomeComponent"],
-                _projeto_list_projeto_list_component__WEBPACK_IMPORTED_MODULE_8__["ProjetoListComponent"],
-                _projeto_detail_projeto_detail_component__WEBPACK_IMPORTED_MODULE_9__["ProjetoDetailComponent"],
-                _projeto_create_projeto_create_component__WEBPACK_IMPORTED_MODULE_10__["ProjetoCreateComponent"],
-                _projeto_edit_projeto_edit_component__WEBPACK_IMPORTED_MODULE_11__["ProjetoEditComponent"],
-                _projeto_indicador_projeto_indicador_component__WEBPACK_IMPORTED_MODULE_12__["ProjetoIndicadorComponent"],
-                _projeto_indicador_fase_projeto_indicador_fase_component__WEBPACK_IMPORTED_MODULE_13__["ProjetoIndicadorFaseComponent"],
-                _projeto_equipe_projeto_equipe_component__WEBPACK_IMPORTED_MODULE_14__["ProjetoEquipeComponent"],
-                _projeto_status_projeto_status_component__WEBPACK_IMPORTED_MODULE_15__["ProjetoStatusComponent"],
-                _usuario_list_usuario_list_component__WEBPACK_IMPORTED_MODULE_16__["UsuarioListComponent"],
-                _usuario_create_usuario_create_component__WEBPACK_IMPORTED_MODULE_17__["UsuarioCreateComponent"],
-                _usuario_edit_usuario_edit_component__WEBPACK_IMPORTED_MODULE_18__["UsuarioEditComponent"],
-                _usuario_detail_usuario_detail_component__WEBPACK_IMPORTED_MODULE_19__["UsuarioDetailComponent"],
-                _indicador_list_indicador_list_component__WEBPACK_IMPORTED_MODULE_20__["IndicadorListComponent"],
-                _indicador_create_indicador_create_component__WEBPACK_IMPORTED_MODULE_21__["IndicadorCreateComponent"],
-                _indicador_detail_indicador_detail_component__WEBPACK_IMPORTED_MODULE_22__["IndicadorDetailComponent"],
-                _indicador_edit_indicador_edit_component__WEBPACK_IMPORTED_MODULE_23__["IndicadorEditComponent"],
-                _permissao_list_permissao_list_component__WEBPACK_IMPORTED_MODULE_24__["PermissaoListComponent"],
-                _relatorio_list_relatorio_list_component__WEBPACK_IMPORTED_MODULE_25__["RelatorioListComponent"],
-                _controllers_message_component_message_component__WEBPACK_IMPORTED_MODULE_26__["MessageComponent"]
+                _home_home_component__WEBPACK_IMPORTED_MODULE_8__["HomeComponent"],
+                _projeto_list_projeto_list_component__WEBPACK_IMPORTED_MODULE_9__["ProjetoListComponent"],
+                _projeto_detail_projeto_detail_component__WEBPACK_IMPORTED_MODULE_10__["ProjetoDetailComponent"],
+                _projeto_create_projeto_create_component__WEBPACK_IMPORTED_MODULE_11__["ProjetoCreateComponent"],
+                _projeto_edit_projeto_edit_component__WEBPACK_IMPORTED_MODULE_12__["ProjetoEditComponent"],
+                _projeto_indicador_projeto_indicador_component__WEBPACK_IMPORTED_MODULE_13__["ProjetoIndicadorComponent"],
+                _projeto_indicador_fase_projeto_indicador_fase_component__WEBPACK_IMPORTED_MODULE_14__["ProjetoIndicadorFaseComponent"],
+                _projeto_equipe_projeto_equipe_component__WEBPACK_IMPORTED_MODULE_15__["ProjetoEquipeComponent"],
+                _projeto_status_projeto_status_component__WEBPACK_IMPORTED_MODULE_16__["ProjetoStatusComponent"],
+                _usuario_list_usuario_list_component__WEBPACK_IMPORTED_MODULE_17__["UsuarioListComponent"],
+                _usuario_create_usuario_create_component__WEBPACK_IMPORTED_MODULE_18__["UsuarioCreateComponent"],
+                _usuario_edit_usuario_edit_component__WEBPACK_IMPORTED_MODULE_19__["UsuarioEditComponent"],
+                _usuario_detail_usuario_detail_component__WEBPACK_IMPORTED_MODULE_20__["UsuarioDetailComponent"],
+                _indicador_list_indicador_list_component__WEBPACK_IMPORTED_MODULE_21__["IndicadorListComponent"],
+                _indicador_create_indicador_create_component__WEBPACK_IMPORTED_MODULE_22__["IndicadorCreateComponent"],
+                _indicador_detail_indicador_detail_component__WEBPACK_IMPORTED_MODULE_23__["IndicadorDetailComponent"],
+                _indicador_edit_indicador_edit_component__WEBPACK_IMPORTED_MODULE_24__["IndicadorEditComponent"],
+                _permissao_list_permissao_list_component__WEBPACK_IMPORTED_MODULE_25__["PermissaoListComponent"],
+                _relatorio_list_relatorio_list_component__WEBPACK_IMPORTED_MODULE_26__["RelatorioListComponent"],
+                _controllers_message_component_message_component__WEBPACK_IMPORTED_MODULE_27__["MessageComponent"],
+                _autenticar_login_component__WEBPACK_IMPORTED_MODULE_7__["LoginComponent"]
             ],
             imports: [
                 _angular_platform_browser__WEBPACK_IMPORTED_MODULE_0__["BrowserModule"],
@@ -711,6 +922,88 @@ var AppModule = /** @class */ (function () {
 
 /***/ }),
 
+/***/ "./src/app/autenticar/login.component.css":
+/*!************************************************!*\
+  !*** ./src/app/autenticar/login.component.css ***!
+  \************************************************/
+/*! no static exports found */
+/***/ (function(module, exports) {
+
+module.exports = "\r\n.playtest {\r\n    font-size: 240%;\r\n    line-height: .75;\r\n    text-align: center;\r\n}\r\n.play {\r\n    border: 2px solid #bbc;\r\n    border-radius: 50%;\r\n    width: 60%;\r\n    padding-top: 60%;\r\n    margin: 0 20%;\r\n    position: relative;\r\n}\r\n.text {\r\n    position: absolute;\r\n    top: 0;\r\n    left: 0;\r\n    bottom: 0;\r\n    right: 0;\r\n}\r\n.text span:first-child {\r\n    padding-bottom: 40px;\r\n}\r\n.text span:last-child {\r\n    padding-top: 40px;\r\n}\r\n.align-center {\r\n    text-align: center;\r\n}\r\n@media screen and (min-width: 901px) {\r\n  .text {\r\n    font-size: 120px;\r\n    line-height: 240px;\r\n    text-align: center;\r\n  }\r\n}\r\n@media screen and (min-width: 601px) and (max-width: 900px) {\r\n    .text {\r\n      font-size: 60px;\r\n      line-height: 120px;\r\n      text-align: center;\r\n    }\r\n  }\r\n@media screen and (min-width: 401px) and (max-width: 600px) {\r\n    .text {\r\n      font-size: 60px;\r\n      line-height: 120px;\r\n      text-align: center;\r\n    }\r\n  }\r\n@media screen and (max-width: 400px) {\r\n  .text {\r\n    font-size: 40px;\r\n    line-height: 80px;\r\n    text-align: center;\r\n  }\r\n}"
+
+/***/ }),
+
+/***/ "./src/app/autenticar/login.component.html":
+/*!*************************************************!*\
+  !*** ./src/app/autenticar/login.component.html ***!
+  \*************************************************/
+/*! no static exports found */
+/***/ (function(module, exports) {
+
+module.exports = "<div class=\"container\">\n  <div class=\"container\">\n    <div class=\"row\">\n    <div class=\"col-4\">\n\n    </div>\n    <div class=\"col-4\">\n      \n      <div class=\"row mt-5\">\n        <div class=\"col\">\n          <div class=\"playtest\">\n            Portfolio <span class=\"small\">de</span> Projetos\n          </div>\n          <!--\n          <div class=\"play\">\n            <span class=\"text\">\n              <span>P</span>\n              <span>P</span>\n            </span>\n          </div>\n          -->\n        </div>\n      </div>\n      <div class=\"row mt-4\">\n        <div class=\"col\">\n          <div class=\"form-group\">\n            <label>E-mail</label>\n            <input type=\"text\" class=\"form-control\" [(ngModel)]=\"loginModel.email\">\n          </div>\n        </div>\n      </div>\n      <div class=\"row\">\n        <div class=\"col\">\n          <div class=\"form-group\">\n            <label>Senha</label>\n            <input type=\"password\" class=\"form-control\" [(ngModel)]=\"loginModel.password\">\n          </div>\n        </div>\n      </div>\n      <div class=\"row mt-3\">\n        <div class=\"col\">\n          <div class=\"form-group\">\n             TEMP: setup@email.com | sPa5f34KS\n            <button type=\"button\" class=\"btn btn-primary btn-block\" (click)=\"onLogin()\">Entrar</button>\n            <br>\n            <div class=\"align-center mt-1\">\n              <a href=\"#\">Esqueci minha senha</a>\n            </div>\n          </div>\n        </div>\n      </div>\n\n    </div>\n    <div class=\"col-4\">\n\n    </div>\n    </div>\n  </div>\n</div>"
+
+/***/ }),
+
+/***/ "./src/app/autenticar/login.component.ts":
+/*!***********************************************!*\
+  !*** ./src/app/autenticar/login.component.ts ***!
+  \***********************************************/
+/*! exports provided: LoginComponent */
+/***/ (function(module, __webpack_exports__, __webpack_require__) {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "LoginComponent", function() { return LoginComponent; });
+/* harmony import */ var _angular_core__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! @angular/core */ "./node_modules/@angular/core/fesm5/core.js");
+/* harmony import */ var _angular_router__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! @angular/router */ "./node_modules/@angular/router/fesm5/router.js");
+/* harmony import */ var _controllers_auth_service_auth_service__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../_controllers/auth/service/auth.service */ "./src/app/_controllers/auth/service/auth.service.ts");
+var __decorate = (undefined && undefined.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __metadata = (undefined && undefined.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+
+
+
+var LoginComponent = /** @class */ (function () {
+    function LoginComponent(serv, router) {
+        this.serv = serv;
+        this.router = router;
+        this.loginModel = {};
+    }
+    LoginComponent.prototype.ngOnInit = function () {
+    };
+    LoginComponent.prototype.onLogin = function () {
+        var _this = this;
+        // validação
+        this.serv.login(this.loginModel).subscribe(function (obj) {
+            console.log('login.componente.ts ----- e ai... aconteceu algo?', obj);
+            if (obj.action && obj.action == 'logged in') {
+                console.log('login.componente.ts ----- para /home!', obj.action);
+                _this.router.navigate(['/home/']);
+            }
+        });
+    };
+    LoginComponent = __decorate([
+        Object(_angular_core__WEBPACK_IMPORTED_MODULE_0__["Component"])({
+            selector: 'app-login',
+            template: __webpack_require__(/*! ./login.component.html */ "./src/app/autenticar/login.component.html"),
+            styles: [__webpack_require__(/*! ./login.component.css */ "./src/app/autenticar/login.component.css")]
+        }),
+        __metadata("design:paramtypes", [_controllers_auth_service_auth_service__WEBPACK_IMPORTED_MODULE_2__["AuthService"],
+            _angular_router__WEBPACK_IMPORTED_MODULE_1__["Router"]])
+    ], LoginComponent);
+    return LoginComponent;
+}());
+
+
+
+/***/ }),
+
 /***/ "./src/app/home/home.component.css":
 /*!*****************************************!*\
   !*** ./src/app/home/home.component.css ***!
@@ -729,7 +1022,7 @@ module.exports = ""
 /*! no static exports found */
 /***/ (function(module, exports) {
 
-module.exports = "<div class=\"container\">\r\n    <div class=\"jumbotron\">\r\n        <h1>Portifolio Projetos</h1>\r\n        <p>Gerencie os projetos e seus indicadores. Vários perfis acessam o sistema e trabalham no fluxo de acompanhamento de projetos.</p>\r\n    </div>\r\n</div>\r\n"
+module.exports = "<div class=\"container\">\r\n    <div class=\"jumbotron\">\r\n        <h1>Portfolio <span class=\"small\">de</span> Projetos</h1>\r\n        <p>Gerencie seus projetos a partir de seus indicadores e status. Acompanhe o andamento de projetos de alto risco e seja avisado de situações críticas.</p>\r\n    </div>\r\n</div>\r\n"
 
 /***/ }),
 
@@ -792,7 +1085,7 @@ module.exports = ""
 /*! no static exports found */
 /***/ (function(module, exports) {
 
-module.exports = "<div class=\"container\">\r\n  <nav aria-label=\"breadcrumb\">\r\n    <ol class=\"breadcrumb\">\r\n      <li class=\"breadcrumb-item\"><a routerLink=\"/home\">Home</a></li>\r\n      <li class=\"breadcrumb-item\"><a routerLink=\"/indicador\">Indicadores</a></li>\r\n      <li class=\"breadcrumb-item active\" aria-current=\"page\">Novo indicador</li>\r\n    </ol>\r\n  </nav>\r\n      <h2>Novo Indicador</h2>\r\n      <small>Líder do Escritório de Projetos</small>\r\n  <hr>\r\n  <form #insertForm=\"ngForm\" (ngSubmit)=\"onSubmit()\">\r\n      <div class=\"row\">\r\n          <div class=\"col-6\">\r\n              <div class=\"form-group\">\r\n                  <label>Nome</label>\r\n                  <input type=\"text\" class=\"form-control\" [(ngModel)]=\"newIndicador.name\" name=\"name\" #name=\"ngModel\" required maxlength=\"30\">\r\n                  <div [hidden]=\"name.valid || name.pristine\"\r\n                    style=\"color: red\">\r\n                    O nome do Indicador é obrigatório.\r\n                  </div>\r\n              </div>\r\n          </div>\r\n      </div>\r\n      <div class=\"row\">\r\n          <div class=\"col\">\r\n              <div class=\"form-group\">\r\n                  <button type=\"button\" class=\"btn btn-primary\" [disabled]=\"!insertForm.form.valid\" (click)=\"onNewIndicator()\">Inserir</button>\r\n                  &nbsp;\r\n                  <button type=\"button\" class=\"btn btn-secondary\" (click)=\"insertForm.reset()\">Limpar</button>\r\n                  &nbsp;\r\n                  <button type=\"button\" class=\"btn btn-default\" (click)=\"goBack()\">Voltar</button>\r\n              </div>\r\n          </div>\r\n      </div>\r\n  </form>\r\n</div>"
+module.exports = "<div class=\"container\">\r\n  <nav aria-label=\"breadcrumb\">\r\n    <ol class=\"breadcrumb\">\r\n      <li class=\"breadcrumb-item\"><a routerLink=\"/home\">Home</a></li>\r\n      <li class=\"breadcrumb-item\"><a routerLink=\"/indicador\">Indicadores</a></li>\r\n      <li class=\"breadcrumb-item active\" aria-current=\"page\">Novo indicador</li>\r\n    </ol>\r\n  </nav>\r\n      <h2>Novo Indicador</h2>\r\n      <small>Líder do Escritório de Projetos</small>\r\n  <hr>\r\n  <form #insertForm=\"ngForm\" (ngSubmit)=\"onSubmit()\">\r\n      <div class=\"row\">\r\n          <div class=\"col-6\">\r\n              <div class=\"form-group\">\r\n                  <label>Nome</label>\r\n                  <input type=\"text\" class=\"form-control\" [(ngModel)]=\"newIndicador.name\" name=\"name\" #name=\"ngModel\" required maxlength=\"30\">\r\n                  <div [hidden]=\"name.valid || name.pristine\"\r\n                    style=\"color: red\">\r\n                    O nome do Indicador é obrigatório.\r\n                  </div>\r\n              </div>\r\n          </div>\r\n      </div>\r\n      <div class=\"row\">\r\n          <div class=\"col\">\r\n              <div class=\"form-group\">\r\n                  <button type=\"button\" class=\"btn btn-primary\" [disabled]=\"!insertForm.form.valid\" (click)=\"onNewIndicator()\">Inserir</button>\r\n                  &nbsp;\r\n            <!--\r\n                  <button type=\"button\" class=\"btn btn-secondary\" (click)=\"insertForm.reset()\">Limpar</button>\r\n                  &nbsp;\r\n              -->\r\n                  <button type=\"button\" class=\"btn btn-default\" (click)=\"goBack()\">Voltar</button>\r\n              </div>\r\n          </div>\r\n      </div>\r\n  </form>\r\n</div>"
 
 /***/ }),
 
@@ -1113,7 +1406,9 @@ var IndicadorListComponent = /** @class */ (function () {
         var _this = this;
         // subscrive fica ouvindo o observable (do serviço) e dispara a função quando receber a lista de
         // indicadores... a função para a lista recebida para a variável local de lista de indicadores.
-        this.indicadorService.getIndicadores().subscribe(function (inds) { _this.indicadorList = inds; });
+        this.indicadorService.getIndicadores().subscribe(function (inds) {
+            _this.indicadorList = inds;
+        });
     };
     // vai para tela de novo
     IndicadorListComponent.prototype.onNewIndicator = function () {
@@ -1205,44 +1500,46 @@ var IndicadorService = /** @class */ (function () {
     };
     // retorna um
     IndicadorService.prototype.getIndicadorById = function (id) {
-        console.log('id que vai...', id);
+        console.log('indicador.service --- id que vai para get by id...', id);
         return this.http.get(this.indicadoresApiUrl + '/' + id).pipe(Object(rxjs_operators__WEBPACK_IMPORTED_MODULE_3__["tap"])(function () {
-            console.log('TAP: editando indicador...');
+            console.log('indicador.service --- TAP: editando indicador...');
         }), Object(rxjs_operators__WEBPACK_IMPORTED_MODULE_3__["catchError"])(this.handleError('getIndicadorById')));
     };
     // inserir novo
     IndicadorService.prototype.postIndicador = function (indicador) {
         var _this = this;
         return this.http.post(this.indicadoresApiUrl, indicador).pipe(Object(rxjs_operators__WEBPACK_IMPORTED_MODULE_3__["tap"])(function (ind) {
-            console.log('TAP: gravando novo indicador no banco...', ind);
+            console.log('indicador.service --- TAP: gravando novo indicador no banco...', ind);
             // foi um sucesso!
             _this.message.success("O indicador " + ind.name + " foi inserido com sucesso", true);
         }), Object(rxjs_operators__WEBPACK_IMPORTED_MODULE_3__["catchError"])(this.handleError('postIndicador')));
     };
     // editar
     IndicadorService.prototype.putIndicador = function (indicador) {
-        console.log('o indicador aqui é...', indicador);
+        console.log('indicador.service --- o indicador aqui no put é...', indicador);
         return this.http.put(this.indicadoresApiUrl + '/' + indicador._id, indicador).pipe(Object(rxjs_operators__WEBPACK_IMPORTED_MODULE_3__["tap"])(), Object(rxjs_operators__WEBPACK_IMPORTED_MODULE_3__["catchError"])(this.handleError('putIndicador')));
     };
     // excluir
     IndicadorService.prototype.deleteIndicador = function (id) {
         var _this = this;
         return this.http.delete(this.indicadoresApiUrl + '/' + id).pipe(Object(rxjs_operators__WEBPACK_IMPORTED_MODULE_3__["tap"])(function () {
-            console.log('sucesso na exclusão!');
+            console.log('indicador.service --- sucesso na exclusão!');
             _this.message.error("O indicador foi exclu\u00EDdo com sucesso", true);
         }), Object(rxjs_operators__WEBPACK_IMPORTED_MODULE_3__["catchError"])(this.handleError('deleteIndicador')));
     };
     IndicadorService.prototype.log = function (message) {
         // message service
-        console.log(message);
+        console.log('indicador.service --- indicador.service.ts - ' + message);
     };
     IndicadorService.prototype.handleError = function (operation, result) {
         var _this = this;
         if (operation === void 0) { operation = 'Operação'; }
         return function (error) {
+            // console.log('indicador.service.ts - ', error);
             // console.error('handleError em indicador.service', error);
             _this.log(operation + " falhou: " + error.message);
-            _this.message.error("Houve uma falha na opera\u00E7\u00E3o " + operation, true);
+            // this.message.error(`Houve uma falha na operação ${operation}`, true);
+            _this.message.error(error.error.message, true);
             // retorna um resultado vazio para app continuar rodando
             return Object(rxjs__WEBPACK_IMPORTED_MODULE_2__["of"])(result);
         };
@@ -1728,7 +2025,7 @@ var PermissaoService = /** @class */ (function () {
         this.permissaoApiUrl = 'api/permissao';
     }
     PermissaoService.prototype.get = function () {
-        return this.httpService.get(this.permissaoApiUrl).pipe(Object(rxjs_operators__WEBPACK_IMPORTED_MODULE_3__["tap"])(), Object(rxjs_operators__WEBPACK_IMPORTED_MODULE_3__["catchError"])(this.handleError('get')));
+        return this.httpService.get(this.permissaoApiUrl).pipe(Object(rxjs_operators__WEBPACK_IMPORTED_MODULE_3__["tap"])(function (r) { return console.log(r); }), Object(rxjs_operators__WEBPACK_IMPORTED_MODULE_3__["catchError"])(this.handleError('get')));
     };
     PermissaoService.prototype.getOne = function (id) {
         return this.httpService.get(this.permissaoApiUrl + '/' + id).pipe(Object(rxjs_operators__WEBPACK_IMPORTED_MODULE_3__["catchError"])(this.handleError('getOne')));
@@ -1745,12 +2042,12 @@ var PermissaoService = /** @class */ (function () {
         return function (error) {
             console.error('handleError em permissao.service', error);
             // this.log(`${operation} falhou: ${error.message}`);
-            if (error.statusText == "Unknow Error") {
-                _this.messageService.error("Falha na desconhecida na opera\u00E7\u00E3o com o servidor.", false);
-            }
-            else {
-                _this.messageService.error("Houve uma falha na opera\u00E7\u00E3o " + operation, true);
-            }
+            /*if (error.statusText == "Unknow Error") {
+              this.messageService.error(`Falha na desconhecida na operação com o servidor.`, false);
+            } else {
+              this.messageService.error(`Houve uma falha na operação ${operation}`, true);
+            }*/
+            _this.messageService.error(error.error.message, true);
             // retorna um resultado vazio para app continuar rodando
             return Object(rxjs__WEBPACK_IMPORTED_MODULE_2__["of"])(result);
         };
@@ -2648,7 +2945,7 @@ module.exports = ""
 /*! no static exports found */
 /***/ (function(module, exports) {
 
-module.exports = "<div class=\"container\">\r\n  <nav aria-label=\"breadcrumb\">\r\n    <ol class=\"breadcrumb\">\r\n      <li class=\"breadcrumb-item\"><a routerLink=\"/home\">Home</a></li>\r\n      <li class=\"breadcrumb-item active\" aria-current=\"page\">Projetos</li>\r\n    </ol>\r\n  </nav>\r\n  <!--\r\n  <h1>Lista de Projetos</h1>\r\n  <hr>\r\n  <h2>Filtros</h2>\r\n  <div class=\"row\">\r\n    <div class=\"col-4\">\r\n\r\n      <div class=\"row\">\r\n        <div class=\"col\">\r\n          <div class=\"form-group\">\r\n            <label>Nome</label>\r\n            <input type=\"text\" class=\"form-control\">\r\n          </div>\r\n        </div>\r\n      </div>\r\n      <div class=\"row\">\r\n        <div class=\"col\">\r\n          <div class=\"form-group\">\r\n            <button type=\"button\" class=\"btn btn-primary\">Filtrar</button>\r\n            <button type=\"button\" class=\"btn btn-secondary\">Limpar</button>\r\n          </div>\r\n        </div>\r\n      </div>\r\n\r\n    </div>\r\n    <div class=\"col-8\">\r\n\r\n    </div>\r\n  </div>\r\n-->\r\n  <hr>\r\n  <h2>\r\n    Lista de Projetos\r\n    <div class=\"float-right\"><button type=\"button\" class=\"btn btn-primary\" (click)=\"onNewProject()\">+ novo projeto</button></div>\r\n  </h2>\r\n  <div>\r\n    <table class=\"table\">\r\n      <thead>\r\n        <tr>\r\n          <th>Projeto</th>\r\n          <th>Equipe</th>\r\n          <th>Indicadores</th>\r\n          <th>Situação</th>\r\n          <th class=\"w20p\">Ações</th>\r\n        </tr>\r\n      </thead>\r\n      <tbody>\r\n        <tr *ngFor=\"let projeto of projetoList\">\r\n          <td>{{projeto.name}}</td>\r\n          <td>\r\n             {{ projeto.team.length > 0 ? ( projeto.team.length > 1 ? projeto.team.length+' membros' : '1 membro' ) : 'Sem equipe' }}\r\n             &nbsp;\r\n             <button type=\"button\" class=\"btn btn-default btn-sm\" (click)=\"onSelectTeam(projeto._id)\">\r\n              gerir equipe\r\n            </button>           \r\n          </td>\r\n          <td>\r\n            <button type=\"button\" class=\"btn btn-default btn-sm\" (click)=\"onSelectIndicators(projeto._id)\">\r\n              gerir indicadores\r\n            </button>\r\n          </td>\r\n          <td>\r\n            <button type=\"button\" class=\"btn btn-default btn-sm\" (click)=\"onSelectStatus(projeto._id)\">\r\n              gerir status\r\n            </button>\r\n          </td>\r\n          <td>\r\n            <button type=\"button\" class=\"btn btn-default\" (click)=\"onSelectEditProjeto(projeto._id)\">\r\n              editar\r\n            </button>\r\n            &nbsp;\r\n            <button type=\"button\" class=\"btn btn-danger\" data-toggle=\"modal\" data-target=\"#exampleModal\" (click)=\"onSelectDeleteProjeto(projeto._id)\">\r\n              excluir\r\n            </button>\r\n          </td>\r\n        </tr>\r\n      </tbody>\r\n    </table>\r\n  </div>\r\n</div>\r\n\r\n<!-- Modal -->\r\n<div class=\"modal fade\" id=\"exampleModal\" tabindex=\"-1\" role=\"dialog\" aria-labelledby=\"exampleModalLabel\" aria-hidden=\"true\">\r\n  <div class=\"modal-dialog\" role=\"document\">\r\n    <div class=\"modal-content\">\r\n    <div class=\"modal-header\">\r\n        <h5 class=\"modal-title\" id=\"exampleModalLabel\">Modal title</h5>\r\n        <button type=\"button\" class=\"close\" data-dismiss=\"modal\" aria-label=\"Close\" (click)=\"onDeselectDeleteOkProjeto()\">\r\n        <span aria-hidden=\"true\">&times;</span>\r\n        </button>\r\n    </div>\r\n    <div class=\"modal-body\">\r\n        Deseja realmente excluir este Projeto?\r\n    </div>\r\n    <div class=\"modal-footer\">\r\n        <button type=\"button\" class=\"btn btn-secondary\" data-dismiss=\"modal\" (click)=\"onDeselectDeleteOkProjeto()\">Cancelar</button>\r\n        &nbsp;\r\n        <button type=\"button\" class=\"btn btn-danger\" data-dismiss=\"modal\" (click)=\"onSelectDeleteOkProjeto()\">Excluir</button>\r\n    </div>\r\n    </div>\r\n  </div>\r\n</div>\r\n"
+module.exports = "<div class=\"container\">\r\n  <nav aria-label=\"breadcrumb\">\r\n    <ol class=\"breadcrumb\">\r\n      <li class=\"breadcrumb-item\"><a routerLink=\"/home\">Home</a></li>\r\n      <li class=\"breadcrumb-item active\" aria-current=\"page\">Projetos</li>\r\n    </ol>\r\n  </nav>\r\n  <!--\r\n  <h1>Lista de Projetos</h1>\r\n  <hr>\r\n  <h2>Filtros</h2>\r\n  <div class=\"row\">\r\n    <div class=\"col-4\">\r\n\r\n      <div class=\"row\">\r\n        <div class=\"col\">\r\n          <div class=\"form-group\">\r\n            <label>Nome</label>\r\n            <input type=\"text\" class=\"form-control\">\r\n          </div>\r\n        </div>\r\n      </div>\r\n      <div class=\"row\">\r\n        <div class=\"col\">\r\n          <div class=\"form-group\">\r\n            <button type=\"button\" class=\"btn btn-primary\">Filtrar</button>\r\n            <button type=\"button\" class=\"btn btn-secondary\">Limpar</button>\r\n          </div>\r\n        </div>\r\n      </div>\r\n\r\n    </div>\r\n    <div class=\"col-8\">\r\n\r\n    </div>\r\n  </div>\r\n-->\r\n  <hr>\r\n  <h2>\r\n    Lista de Projetos\r\n    <div class=\"float-right\"><button type=\"button\" class=\"btn btn-primary\" (click)=\"onNewProject()\">+ novo projeto</button></div>\r\n  </h2>\r\n  <div>\r\n    <table class=\"table\">\r\n      <thead>\r\n        <tr>\r\n          <th>Projeto</th>\r\n          <th>Equipe</th>\r\n          <th>Indicadores</th>\r\n          <th>Situação</th>\r\n          <th class=\"w20p\">Ações</th>\r\n        </tr>\r\n      </thead>\r\n      <tbody>\r\n        <tr *ngFor=\"let projeto of projetoList\">\r\n          <td>{{projeto.name}}</td>\r\n          <td>\r\n             {{ projeto.team.length > 0 ? ( projeto.team.length > 1 ? projeto.team.length+' membros' : '1 membro' ) : 'Sem equipe' }}\r\n             &nbsp;\r\n             <button type=\"button\" class=\"btn btn-default btn-sm\" (click)=\"onSelectTeam(projeto._id)\" *ngIf=\"auth.permissionList.indexOf('/projeto-equipe') >= 0\">\r\n              gerir equipe\r\n            </button>           \r\n          </td>\r\n          <td>\r\n            <button type=\"button\" class=\"btn btn-default btn-sm\" (click)=\"onSelectIndicators(projeto._id)\" *ngIf=\"auth.permissionList.indexOf('/projeto-indicador') >= 0\">\r\n              relacionar indicadores do projeto\r\n            </button>\r\n            <button type=\"button\" class=\"btn btn-default btn-sm\" (click)=\"onSelectIndicators(projeto._id)\" *ngIf=\"auth.permissionList.indexOf('/projeto-indicador-fase') >= 0\">\r\n              gerir indicadores por fases\r\n            </button>\r\n          </td>\r\n          <td>\r\n            <button type=\"button\" class=\"btn btn-default btn-sm\" (click)=\"onSelectStatus(projeto._id)\" *ngIf=\"auth.permissionList.indexOf('/projeto-status') >= 0\">\r\n              gerir status\r\n            </button>\r\n          </td>\r\n          <td>\r\n            <button type=\"button\" class=\"btn btn-default\" (click)=\"onSelectEditProjeto(projeto._id)\">\r\n              editar\r\n            </button>\r\n            &nbsp;\r\n            <button type=\"button\" class=\"btn btn-danger\" data-toggle=\"modal\" data-target=\"#exampleModal\" (click)=\"onSelectDeleteProjeto(projeto._id)\">\r\n              excluir\r\n            </button>\r\n          </td>\r\n        </tr>\r\n      </tbody>\r\n    </table>\r\n  </div>\r\n</div>\r\n\r\n<!-- Modal -->\r\n<div class=\"modal fade\" id=\"exampleModal\" tabindex=\"-1\" role=\"dialog\" aria-labelledby=\"exampleModalLabel\" aria-hidden=\"true\">\r\n  <div class=\"modal-dialog\" role=\"document\">\r\n    <div class=\"modal-content\">\r\n    <div class=\"modal-header\">\r\n        <h5 class=\"modal-title\" id=\"exampleModalLabel\">Modal title</h5>\r\n        <button type=\"button\" class=\"close\" data-dismiss=\"modal\" aria-label=\"Close\" (click)=\"onDeselectDeleteOkProjeto()\">\r\n        <span aria-hidden=\"true\">&times;</span>\r\n        </button>\r\n    </div>\r\n    <div class=\"modal-body\">\r\n        Deseja realmente excluir este Projeto?\r\n    </div>\r\n    <div class=\"modal-footer\">\r\n        <button type=\"button\" class=\"btn btn-secondary\" data-dismiss=\"modal\" (click)=\"onDeselectDeleteOkProjeto()\">Cancelar</button>\r\n        &nbsp;\r\n        <button type=\"button\" class=\"btn btn-danger\" data-dismiss=\"modal\" (click)=\"onSelectDeleteOkProjeto()\">Excluir</button>\r\n    </div>\r\n    </div>\r\n  </div>\r\n</div>\r\n"
 
 /***/ }),
 
@@ -2664,7 +2961,8 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "ProjetoListComponent", function() { return ProjetoListComponent; });
 /* harmony import */ var _angular_core__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! @angular/core */ "./node_modules/@angular/core/fesm5/core.js");
 /* harmony import */ var _angular_router__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! @angular/router */ "./node_modules/@angular/router/fesm5/router.js");
-/* harmony import */ var _projeto_services_projeto_service__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../projeto-services/projeto.service */ "./src/app/projeto-services/projeto.service.ts");
+/* harmony import */ var _controllers_auth_service_auth_service__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../_controllers/auth/service/auth.service */ "./src/app/_controllers/auth/service/auth.service.ts");
+/* harmony import */ var _projeto_services_projeto_service__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ../projeto-services/projeto.service */ "./src/app/projeto-services/projeto.service.ts");
 var __decorate = (undefined && undefined.__decorate) || function (decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -2677,10 +2975,12 @@ var __metadata = (undefined && undefined.__metadata) || function (k, v) {
 
 
 
+
 var ProjetoListComponent = /** @class */ (function () {
-    function ProjetoListComponent(projetoService, route) {
+    function ProjetoListComponent(projetoService, router, auth) {
         this.projetoService = projetoService;
-        this.route = route;
+        this.router = router;
+        this.auth = auth;
     }
     ProjetoListComponent.prototype.ngOnInit = function () {
         // inicia a página e carrega a lista de produtos do serviço
@@ -2690,43 +2990,42 @@ var ProjetoListComponent = /** @class */ (function () {
         // this.projeto_list = this.projetoService.getProjetos();
         var that = this;
         this.projetoService.getProjetos().subscribe(function (projetos) {
-            console.log('projeto-list.componente getProjetos()');
-            // console.dir(projetos);
+            //console.log('projeto-list.component.js --- getProjetos()', projetos);
             that.projetoList = projetos;
         });
     };
     ProjetoListComponent.prototype.onNewProject = function () {
-        console.log('in para um novo projeto...');
-        this.route.navigate(['/projeto/create']);
+        //console.log('projeto-list.component.js --- indo para um novo projeto...');
+        this.router.navigate(['/projeto/create']);
     };
     ProjetoListComponent.prototype.onSelectTeam = function (id) {
-        console.log('selecionar time para projeto id', id);
-        this.route.navigate(['/projeto/equipe/' + id]);
+        //console.log('projeto-list.component.js --- selecionar time para projeto id', id);
+        this.router.navigate(['/projeto/equipe/' + id]);
     };
     ProjetoListComponent.prototype.onSelectStatus = function (id) {
-        console.log('selecionar status para projeto id', id);
-        this.route.navigate(['/projeto/status/' + id]);
+        //console.log('projeto-list.component.js --- selecionar status para projeto id', id);
+        this.router.navigate(['/projeto/status/' + id]);
     };
     ProjetoListComponent.prototype.onSelectIndicators = function (id) {
-        console.log('selecionar indicadores para projeto id', id);
-        this.route.navigate(['/projeto/indicador-fase/' + id]);
+        //console.log('projeto-list.component.js --- selecionar indicadores para projeto id', id);
+        this.router.navigate(['/projeto/indicador-fase/' + id]);
     };
     ProjetoListComponent.prototype.onSelectEditProjeto = function (idProjeto) {
-        console.log('projeto-list.componente onSelectEditProjeto()');
-        this.route.navigate(['/projeto/edit/' + idProjeto]);
+        //console.log('projeto-list.component.js --- onSelectEditProjeto()');
+        this.router.navigate(['/projeto/edit/' + idProjeto]);
     };
     ProjetoListComponent.prototype.onSelectDeleteProjeto = function (idProjeto) {
-        console.log('projeto-list.componente onSelectDeleteProjeto()');
+        //console.log('projeto-list.component.js --- onSelectDeleteProjeto()');
         this.deleteProjectWait = idProjeto;
     };
     ProjetoListComponent.prototype.onSelectDeleteOkProjeto = function () {
         var _this = this;
-        console.log('deletando...');
+        //console.log('projeto-list.component.js --- deletando...');
         if (this.deleteProjectWait) {
-            console.log('realmente deletando...');
+            //console.log('projeto-list.component.js --- realmente deletando...');
             // chama serviço para deletar Projeto
             this.projetoService.deleteProjeto(this.deleteProjectWait).subscribe(function (obj) {
-                console.log('deletado!', obj);
+                //console.log('projeto-list.component.js --- deletado!', obj);
                 // o delete retorna uma msg, não um objeto do tipo que o Observable espera
                 if (obj && obj['type'] && obj['type'] == 'success') {
                     // atualiza lista de projetos na view
@@ -2748,8 +3047,9 @@ var ProjetoListComponent = /** @class */ (function () {
             template: __webpack_require__(/*! ./projeto-list.component.html */ "./src/app/projeto-list/projeto-list.component.html"),
             styles: [__webpack_require__(/*! ./projeto-list.component.css */ "./src/app/projeto-list/projeto-list.component.css")]
         }),
-        __metadata("design:paramtypes", [_projeto_services_projeto_service__WEBPACK_IMPORTED_MODULE_2__["ProjetoService"],
-            _angular_router__WEBPACK_IMPORTED_MODULE_1__["Router"]])
+        __metadata("design:paramtypes", [_projeto_services_projeto_service__WEBPACK_IMPORTED_MODULE_3__["ProjetoService"],
+            _angular_router__WEBPACK_IMPORTED_MODULE_1__["Router"],
+            _controllers_auth_service_auth_service__WEBPACK_IMPORTED_MODULE_2__["AuthService"]])
     ], ProjetoListComponent);
     return ProjetoListComponent;
 }());
@@ -2843,7 +3143,8 @@ var ProjetoService = /** @class */ (function () {
         return function (error) {
             console.error(error); // log to console instead
             _this.log(operation + " falhou: " + error.message);
-            _this.message.error(operation + " falhou: " + error.message, true);
+            // this.message.error(`${operation} falhou: ${error.message}`, true);
+            _this.message.error(error.error.message, true);
             return Object(rxjs__WEBPACK_IMPORTED_MODULE_2__["of"])(result);
         };
     };
@@ -3043,7 +3344,7 @@ var ProjetoStatusComponent = /** @class */ (function () {
 /*! no static exports found */
 /***/ (function(module, exports) {
 
-module.exports = ""
+module.exports = ".table tbody {\r\n    border-top: 3px solid #bec2c6; /* #dee2e6; */\r\n}"
 
 /***/ }),
 
@@ -3054,7 +3355,7 @@ module.exports = ""
 /*! no static exports found */
 /***/ (function(module, exports) {
 
-module.exports = "<div class=\"container\">\r\n  <nav aria-label=\"breadcrumb\">\r\n    <ol class=\"breadcrumb\">\r\n      <li class=\"breadcrumb-item\"><a routerLink=\"/home\">Home</a></li>\r\n      <li class=\"breadcrumb-item active\" aria-current=\"page\">Relatório</li>\r\n    </ol>\r\n  </nav>\r\n  <h2>Relatório de Acompanhamento de Projetos</h2>\r\n  <hr>\r\n\r\n  <h4>Filtros</h4>\r\n  <div class=\"row\">\r\n    <div class=\"col-4\">\r\n      <div class=\"row\">\r\n        <div class=\"col\">\r\n          <div class=\"form-group\">\r\n            <label>Nome</label>\r\n            <input type=\"text\" class=\"form-control\">\r\n          </div>\r\n        </div>\r\n      </div>\r\n      <div class=\"row\">\r\n          <div class=\"col-6\">\r\n              <div class=\"form-group\">\r\n                  <label>De</label>\r\n                  <input class=\"form-control datepicker\">\r\n              </div>\r\n          </div>\r\n          <div class=\"col-6\">\r\n              <div class=\"form-group\">\r\n                  <label>Até</label>\r\n                  <input class=\"form-control datepicker\">\r\n              </div>\r\n          </div>\r\n      </div>\r\n      <div class=\"row\">\r\n        <div class=\"col\">\r\n          <div class=\"form-group\">\r\n            <button type=\"button\" class=\"btn btn-primary\">Filtrar</button>\r\n            &nbsp;\r\n            <button type=\"button\" class=\"btn btn-secondary\">Limpar</button>\r\n          </div>\r\n        </div>\r\n      </div>\r\n    </div>\r\n    <div class=\"col-8\">\r\n    </div>\r\n  </div>\r\n  <hr>\r\n  <h4>\r\n    Lista\r\n  </h4>\r\n  <div>\r\n    <table class=\"table\">\r\n      <thead>\r\n        <tr>\r\n          <th>cabeça</th>\r\n          <th>cabeça</th>\r\n        </tr>\r\n      </thead>\r\n      <tbody>\r\n        <tr>\r\n          <td>corpo</td>\r\n          <td>corpo</td>\r\n        </tr>\r\n      </tbody>\r\n    </table>\r\n  </div>\r\n</div>\r\n"
+module.exports = "<div class=\"container\">\r\n  <nav aria-label=\"breadcrumb\">\r\n    <ol class=\"breadcrumb\">\r\n      <li class=\"breadcrumb-item\"><a routerLink=\"/home\">Home</a></li>\r\n      <li class=\"breadcrumb-item active\" aria-current=\"page\">Relatório</li>\r\n    </ol>\r\n  </nav>\r\n  <h2>Relatório de Acompanhamento de Projetos</h2>\r\n  <hr>\r\n\r\n  <div class=\"row\">\r\n    <div class=\"col-4\">\r\n      <div class=\"form-group\">\r\n        <label>Listar Projetos</label>\r\n        <select class=\"form-control custom-select\" #selectProject (change)=\"onChangeFilter($event)\">\r\n          <option value=\"\">Todos</option>\r\n          <option *ngFor=\"let item of reportProjectLis\" value=\"{{item._id}}\">{{item.name}}</option>\r\n        </select>\r\n      </div>\r\n    </div>\r\n  </div>\r\n<!--\r\n  <h4>Filtros</h4>\r\n  <div class=\"row\">\r\n    <div class=\"col-4\">\r\n      <div class=\"row\">\r\n        <div class=\"col\">\r\n          <div class=\"form-group\">\r\n            <label>Nome</label>\r\n            <input type=\"text\" class=\"form-control\">\r\n          </div>\r\n        </div>\r\n      </div>\r\n      <div class=\"row\">\r\n          <div class=\"col-6\">\r\n              <div class=\"form-group\">\r\n                  <label>De</label>\r\n                  <input class=\"form-control datepicker\">\r\n              </div>\r\n          </div>\r\n          <div class=\"col-6\">\r\n              <div class=\"form-group\">\r\n                  <label>Até</label>\r\n                  <input class=\"form-control datepicker\">\r\n              </div>\r\n          </div>\r\n      </div>\r\n      <div class=\"row\">\r\n        <div class=\"col\">\r\n          <div class=\"form-group\">\r\n            <button type=\"button\" class=\"btn btn-primary\">Filtrar</button>\r\n            &nbsp;\r\n            <button type=\"button\" class=\"btn btn-secondary\">Limpar</button>\r\n          </div>\r\n        </div>\r\n      </div>\r\n    </div>\r\n    <div class=\"col-8\">\r\n    </div>\r\n  </div>\r\n  <hr>\r\n  <h4>\r\n    Lista\r\n  </h4>\r\n-->\r\n  <div>\r\n    <table class=\"table\">\r\n      <!--\r\n      <thead>\r\n        <tr>\r\n          <th>cabeça</th>\r\n          <th>cabeça</th>\r\n        </tr>\r\n      </thead>\r\n      -->\r\n      <tbody *ngFor=\"let item of reportProjectLis_Filtered\" style=\"margin-bottom:40px\">\r\n        <tr>\r\n          <td colspan=\"4\">\r\n            <div class=\"small\">Projeto:</div>\r\n            <b>{{item.name}}</b>\r\n          </td>\r\n        <tr>\r\n          <td>\r\n            <div class=\"small\">Data de início:</div>\r\n            <b>{{ ( item.dateStartReport ? item.dateStartReport : '-' ) }}</b>\r\n          </td>\r\n          <td>\r\n            <div class=\"small\">Data de previsão de términio:</div>\r\n            <b>{{ ( item.datePrevisionReport ? item.datePrevisionReport : '-' ) }}</b>\r\n          </td>\r\n          <td>\r\n            <div class=\"small\">Data real de términio:</div>\r\n            <b>{{ ( item.dateEndReport ? item.dateEndReport : '-' ) }}</b>\r\n          </td>\r\n          <td></td>\r\n        </tr>\r\n        <tr>\r\n          <td colspan=\"4\">\r\n            <div class=\"small\">Descrição:</div>\r\n              {{ item.description }}\r\n          </td>\r\n        </tr>\r\n        <tr>\r\n          <td colspan=\"4\">\r\n            <div class=\"small\">Membro(s) do time:</div>\r\n            <div *ngFor=\"let team of item.team\">\r\n              {{ team.name }}\r\n            </div>\r\n          </td>\r\n        </tr>\r\n        <tr>\r\n          <td colspan=\"4\">\r\n            <span class=\"small\">\r\n              Indicadores\r\n            </span>\r\n          </td>\r\n        </tr>\r\n        <tr>\r\n          <td style=\"border-top: none\">\r\n            <div class=\"small\">Fase 1:</div>\r\n            <div *ngFor=\"let ind of item.phases.phase1\">\r\n              {{ ind.name }} - {{ ind.value }} - {{ ind.min }} - {{ ind.max }}\r\n            </div>\r\n          </td>\r\n          <td style=\"border-top: none\">\r\n            <div class=\"small\">Fase 2:</div>\r\n            <div *ngFor=\"let ind of item.phases.phase2\">\r\n              {{ ind.name }} - {{ ind.value }} - {{ ind.min }} - {{ ind.max }}\r\n            </div>\r\n          </td>\r\n          <td style=\"border-top: none\">\r\n            <div class=\"small\">Fase 3:</div>\r\n            <div *ngFor=\"let ind of item.phases.phase3\">\r\n              {{ ind.name }} - {{ ind.value }} - {{ ind.min }} - {{ ind.max }}\r\n            </div>\r\n          </td>\r\n          <td style=\"border-top: none\">\r\n            <div class=\"small\">Fase 4:</div>\r\n            <div *ngFor=\"let ind of item.phases.phase4\">\r\n              {{ ind.name }} - {{ ind.value }} - {{ ind.min }} - {{ ind.max }}\r\n            </div>\r\n          </td>\r\n        </tr>\r\n        <tr>\r\n          <td colspan=\"4\">\r\n            <div class=\"small\">Orçamento:</div>\r\n              {{ item.budget }}\r\n          </td>\r\n        </tr>\r\n        <tr>\r\n          <td colspan=\"4\">\r\n            <div class=\"small\">Risco:</div>\r\n              {{ item.risk }}\r\n          </td>\r\n        </tr>\r\n        <tr>\r\n          <td colspan=\"2\">\r\n            <div class=\"small\">Status:</div>\r\n              {{ item.status }}\r\n          </td>\r\n          <td colspan=\"2\" *ngIf=\"item.userChangeStatus\">\r\n            <div class=\"small\">Última alteração de status:</div>\r\n              {{ item.dateChangeStatusReport }}\r\n              <br>\r\n              {{ item.userChangeStatus.name }}\r\n              <br>\r\n              <span class=\"small\">\r\n                  {{ item.userChangeStatus.role }}\r\n              </span>\r\n          </td>\r\n        </tr>\r\n        <tr *ngIf=\"manager\">\r\n          <td colspan=\"4\">\r\n            <div class=\"small\">Gerente:</div>\r\n              {{ manager.name }} <span class=\"small\"> {{ manager.role }} </span>\r\n          </td>\r\n        </tr>\r\n      </tbody>\r\n    </table>\r\n  </div>\r\n</div>\r\n"
 
 /***/ }),
 
@@ -3069,6 +3370,7 @@ module.exports = "<div class=\"container\">\r\n  <nav aria-label=\"breadcrumb\">
 __webpack_require__.r(__webpack_exports__);
 /* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "RelatorioListComponent", function() { return RelatorioListComponent; });
 /* harmony import */ var _angular_core__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! @angular/core */ "./node_modules/@angular/core/fesm5/core.js");
+/* harmony import */ var _relatorio_service_relatorio_service__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../relatorio-service/relatorio.service */ "./src/app/relatorio-service/relatorio.service.ts");
 var __decorate = (undefined && undefined.__decorate) || function (decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -3079,8 +3381,10 @@ var __metadata = (undefined && undefined.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 
+
 var RelatorioListComponent = /** @class */ (function () {
-    function RelatorioListComponent() {
+    function RelatorioListComponent(relatorio) {
+        this.relatorio = relatorio;
     }
     RelatorioListComponent.prototype.ngOnInit = function () {
         // jquery datepicker
@@ -3089,6 +3393,23 @@ var RelatorioListComponent = /** @class */ (function () {
             language: 'pt-BR'
         });
         //
+        this.getDataAll();
+    };
+    RelatorioListComponent.prototype.getDataAll = function () {
+        var _this = this;
+        this.relatorio.getAll().subscribe(function (res) {
+            _this.reportProjectLis = res;
+            _this.reportProjectLis_Filtered = res;
+        });
+    };
+    RelatorioListComponent.prototype.onChangeFilter = function ($event) {
+        console.log($event.target.value);
+        if ($event.target.value) {
+            this.reportProjectLis_Filtered = this.reportProjectLis.filter(function (el) { return el._id == $event.target.value; });
+        }
+        else {
+            this.reportProjectLis_Filtered = this.reportProjectLis;
+        }
     };
     RelatorioListComponent = __decorate([
         Object(_angular_core__WEBPACK_IMPORTED_MODULE_0__["Component"])({
@@ -3096,9 +3417,81 @@ var RelatorioListComponent = /** @class */ (function () {
             template: __webpack_require__(/*! ./relatorio-list.component.html */ "./src/app/relatorio-list/relatorio-list.component.html"),
             styles: [__webpack_require__(/*! ./relatorio-list.component.css */ "./src/app/relatorio-list/relatorio-list.component.css")]
         }),
-        __metadata("design:paramtypes", [])
+        __metadata("design:paramtypes", [_relatorio_service_relatorio_service__WEBPACK_IMPORTED_MODULE_1__["RelatorioService"]])
     ], RelatorioListComponent);
     return RelatorioListComponent;
+}());
+
+
+
+/***/ }),
+
+/***/ "./src/app/relatorio-service/relatorio.service.ts":
+/*!********************************************************!*\
+  !*** ./src/app/relatorio-service/relatorio.service.ts ***!
+  \********************************************************/
+/*! exports provided: RelatorioService */
+/***/ (function(module, __webpack_exports__, __webpack_require__) {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "RelatorioService", function() { return RelatorioService; });
+/* harmony import */ var _angular_core__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! @angular/core */ "./node_modules/@angular/core/fesm5/core.js");
+/* harmony import */ var _angular_common_http__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! @angular/common/http */ "./node_modules/@angular/common/fesm5/http.js");
+/* harmony import */ var rxjs__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! rxjs */ "./node_modules/rxjs/_esm5/index.js");
+/* harmony import */ var rxjs_operators__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! rxjs/operators */ "./node_modules/rxjs/_esm5/operators/index.js");
+/* harmony import */ var _controllers_message_service_message_service__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ../_controllers/message/service/message.service */ "./src/app/_controllers/message/service/message.service.ts");
+var __decorate = (undefined && undefined.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __metadata = (undefined && undefined.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+
+
+
+
+
+var RelatorioService = /** @class */ (function () {
+    function RelatorioService(http, message) {
+        this.http = http;
+        this.message = message;
+        this.urlApi = 'api/relatorio';
+    }
+    RelatorioService.prototype.getAll = function () {
+        var _this = this;
+        return this.http.get(this.urlApi).pipe(Object(rxjs_operators__WEBPACK_IMPORTED_MODULE_3__["tap"])(function () { return _this.log('Serviço de relatorios retornou consulta getAll'); }), Object(rxjs_operators__WEBPACK_IMPORTED_MODULE_3__["catchError"])(this.handleError('getProjetoRelatorio-All')));
+    };
+    RelatorioService.prototype.getOne = function (id) {
+        var _this = this;
+        return this.http.get(this.urlApi + '/' + id).pipe(Object(rxjs_operators__WEBPACK_IMPORTED_MODULE_3__["tap"])(function () { return _this.log('Serviço de relatorios retornou consulta getOne'); }), Object(rxjs_operators__WEBPACK_IMPORTED_MODULE_3__["catchError"])(this.handleError('getProjetoRelatorio-One')));
+    };
+    RelatorioService.prototype.log = function (message) {
+        // message service
+        console.log(message);
+    };
+    RelatorioService.prototype.handleError = function (operation, result) {
+        var _this = this;
+        if (operation === void 0) { operation = 'Operação '; }
+        return function (error) {
+            console.error(error); // log to console instead
+            _this.log(operation + " falhou: " + error.message);
+            // this.message.error(`${operation} falhou: ${error.message}`, true);
+            _this.message.error(error.error.message, true);
+            return Object(rxjs__WEBPACK_IMPORTED_MODULE_2__["of"])(result);
+        };
+    };
+    RelatorioService = __decorate([
+        Object(_angular_core__WEBPACK_IMPORTED_MODULE_0__["Injectable"])({
+            providedIn: 'root'
+        }),
+        __metadata("design:paramtypes", [_angular_common_http__WEBPACK_IMPORTED_MODULE_1__["HttpClient"],
+            _controllers_message_service_message_service__WEBPACK_IMPORTED_MODULE_4__["MessageService"]])
+    ], RelatorioService);
+    return RelatorioService;
 }());
 
 
@@ -3420,7 +3813,7 @@ module.exports = ""
 /*! no static exports found */
 /***/ (function(module, exports) {
 
-module.exports = "<div class=\"container\">\r\n  <nav aria-label=\"breadcrumb\">\r\n    <ol class=\"breadcrumb\">\r\n      <li class=\"breadcrumb-item\"><a routerLink=\"/home\">Home</a></li>\r\n      <li class=\"breadcrumb-item active\" aria-current=\"page\">Usuários</li>\r\n    </ol>\r\n  </nav>\r\n  <!--\r\n  <h2>Lista de Usuários\r\n  </h2>\r\n  <hr>\r\n  <h2>Filtros</h2>\r\n  <div class=\"row\">\r\n    <div class=\"col-4\">\r\n\r\n      <div class=\"row\">\r\n        <div class=\"col\">\r\n          <div class=\"form-group\">\r\n            <label>Nome</label>\r\n            <input type=\"text\" class=\"form-control\">\r\n          </div>\r\n        </div>\r\n      </div>\r\n      <div class=\"row\">\r\n        <div class=\"col\">\r\n          <div class=\"form-group\">\r\n            <button type=\"button\" class=\"btn btn-primary\">Filtrar</button>\r\n            <button type=\"button\" class=\"btn btn-secondary\">Limpar</button>\r\n          </div>\r\n        </div>\r\n      </div>\r\n\r\n    </div>\r\n    <div class=\"col-8\">\r\n\r\n    </div>\r\n  </div>\r\n  <hr>\r\n-->\r\n  <h2>\r\n    Lista\r\n    <div class=\"float-right\"><button type=\"button\" class=\"btn btn-primary\" (click)=\"onNewUsuario()\">+ novo usuário</button></div>\r\n  </h2>\r\n\r\n  <div>\r\n    <table class=\"table\">\r\n      <thead>\r\n        <tr>\r\n          <th class=\"w1p\"></th>\r\n          <th>Usuário</th>\r\n          <th class=\"w20p\">Perfil</th>\r\n          <th class=\"w20p\">Ações</th>\r\n        </tr>\r\n      </thead>\r\n      <tbody>\r\n        <tr *ngFor=\"let usuario of usuariosList; let i = index\">\r\n          <td>{{ i + 1 }}</td>\r\n          <td>{{ usuario.name }}</td>\r\n          <td>{{ usuario.role }}</td>\r\n          <td>\r\n            <button type=\"button\" class=\"btn btn-default btn-sm\" (click)=\"onSelectUsuario(usuario._id)\">\r\n              editar\r\n            </button>\r\n            &nbsp;\r\n            <button type=\"button\" class=\"btn btn-danger btn-sm\" data-toggle=\"modal\" data-target=\"#exampleModal\" (click)=\"onDeleteUsuario(usuario._id)\">\r\n              excluir\r\n            </button>\r\n          </td>\r\n        </tr>\r\n      </tbody>\r\n    </table>\r\n  </div>\r\n</div>\r\n\r\n<!-- Modal -->\r\n<div class=\"modal fade\" id=\"exampleModal\" tabindex=\"-1\" role=\"dialog\" aria-labelledby=\"exampleModalLabel\" aria-hidden=\"true\">\r\n    <div class=\"modal-dialog\" role=\"document\">\r\n        <div class=\"modal-content\">\r\n        <!--\r\n        <div class=\"modal-header\">\r\n            <h5 class=\"modal-title\" id=\"exampleModalLabel\">Exclusão</h5>\r\n            <button type=\"button\" class=\"close\" data-dismiss=\"modal\" aria-label=\"Close\">\r\n            <span aria-hidden=\"true\">&times;</span>\r\n            </button>\r\n        </div>\r\n      -->\r\n        <div class=\"modal-body\">\r\n            Deseja realmente excluir este usuário?\r\n        </div>\r\n        <div class=\"modal-footer\">\r\n            <button type=\"button\" class=\"btn btn-default btn-sm\" data-dismiss=\"modal\">Cancelar</button>\r\n            <button type=\"button\" class=\"btn btn-danger btn-sm\" data-dismiss=\"modal\" (click)=\"onConfirmDeleteUsuario()\">Excluir</button>\r\n        </div>\r\n        </div>\r\n    </div>\r\n</div>\r\n"
+module.exports = "<div class=\"container\">\r\n  <nav aria-label=\"breadcrumb\">\r\n    <ol class=\"breadcrumb\">\r\n      <li class=\"breadcrumb-item\"><a routerLink=\"/home\">Home</a></li>\r\n      <li class=\"breadcrumb-item active\" aria-current=\"page\">Usuários</li>\r\n    </ol>\r\n  </nav>\r\n  <!--\r\n  <h2>Lista de Usuários\r\n  </h2>\r\n  <hr>\r\n  <h2>Filtros</h2>\r\n  <div class=\"row\">\r\n    <div class=\"col-4\">\r\n\r\n      <div class=\"row\">\r\n        <div class=\"col\">\r\n          <div class=\"form-group\">\r\n            <label>Nome</label>\r\n            <input type=\"text\" class=\"form-control\">\r\n          </div>\r\n        </div>\r\n      </div>\r\n      <div class=\"row\">\r\n        <div class=\"col\">\r\n          <div class=\"form-group\">\r\n            <button type=\"button\" class=\"btn btn-primary\">Filtrar</button>\r\n            <button type=\"button\" class=\"btn btn-secondary\">Limpar</button>\r\n          </div>\r\n        </div>\r\n      </div>\r\n\r\n    </div>\r\n    <div class=\"col-8\">\r\n\r\n    </div>\r\n  </div>\r\n  <hr>\r\n-->\r\n  <h2>\r\n    Lista de Usuários\r\n    <div class=\"float-right\"><button type=\"button\" class=\"btn btn-primary\" (click)=\"onNewUsuario()\">+ novo usuário</button></div>\r\n  </h2>\r\n\r\n  <div>\r\n    <table class=\"table\">\r\n      <thead>\r\n        <tr>\r\n          <th class=\"w1p\"></th>\r\n          <th>Usuário</th>\r\n          <th class=\"w20p\">Perfil</th>\r\n          <th class=\"w20p\">Ações</th>\r\n        </tr>\r\n      </thead>\r\n      <tbody>\r\n        <tr *ngFor=\"let usuario of usuariosList; let i = index\">\r\n          <td>{{ i + 1 }}</td>\r\n          <td>{{ usuario.name }}</td>\r\n          <td>{{ usuario.role }}</td>\r\n          <td>\r\n            <button type=\"button\" class=\"btn btn-default btn-sm\" (click)=\"onSelectUsuario(usuario._id)\">\r\n              editar\r\n            </button>\r\n            &nbsp;\r\n            <button type=\"button\" class=\"btn btn-danger btn-sm\" data-toggle=\"modal\" data-target=\"#exampleModal\" (click)=\"onDeleteUsuario(usuario._id)\">\r\n              excluir\r\n            </button>\r\n          </td>\r\n        </tr>\r\n      </tbody>\r\n    </table>\r\n  </div>\r\n</div>\r\n\r\n<!-- Modal -->\r\n<div class=\"modal fade\" id=\"exampleModal\" tabindex=\"-1\" role=\"dialog\" aria-labelledby=\"exampleModalLabel\" aria-hidden=\"true\">\r\n    <div class=\"modal-dialog\" role=\"document\">\r\n        <div class=\"modal-content\">\r\n        <!--\r\n        <div class=\"modal-header\">\r\n            <h5 class=\"modal-title\" id=\"exampleModalLabel\">Exclusão</h5>\r\n            <button type=\"button\" class=\"close\" data-dismiss=\"modal\" aria-label=\"Close\">\r\n            <span aria-hidden=\"true\">&times;</span>\r\n            </button>\r\n        </div>\r\n      -->\r\n        <div class=\"modal-body\">\r\n            Deseja realmente excluir este usuário?\r\n        </div>\r\n        <div class=\"modal-footer\">\r\n            <button type=\"button\" class=\"btn btn-default btn-sm\" data-dismiss=\"modal\">Cancelar</button>\r\n            <button type=\"button\" class=\"btn btn-danger btn-sm\" data-dismiss=\"modal\" (click)=\"onConfirmDeleteUsuario()\">Excluir</button>\r\n        </div>\r\n        </div>\r\n    </div>\r\n</div>\r\n"
 
 /***/ }),
 
@@ -3556,7 +3949,15 @@ var UsuarioService = /** @class */ (function () {
         var _this = this;
         if (operation === void 0) { operation = 'Operação'; }
         return function (error) {
-            _this.message.error("Houve uma falha na opera\u00E7\u00E3o " + operation, true);
+            console.error(error);
+            console.log("Houve uma falha na opera\u00E7\u00E3o " + operation);
+            if (error.error && error.error.message)
+                _this.message.error(error.error.message, true);
+            else
+                _this.message.error('Erro não identificado. [usu.ser.' + operation + ']', true);
+            /*if (error.error.message.indexOf('jwt expired') > 0) {
+              // TODO logout
+            }*/
             return Object(rxjs__WEBPACK_IMPORTED_MODULE_2__["of"])(result);
         };
     };

@@ -10,10 +10,10 @@ router.use(bodyParser.json());
 var userModel = require('../models/usuarios');
 
 router.get('/', function(req, res){
+    console.log('get em usuários');
     userModel.find({}, '-password', function(err, usrs){ // volta todos os campos menos o password
         if (err) {
             // retorna mensagem de erro
-            // TODO retornar código http de erro
             res.status(400);
             res.json({ message: 'Erro na recuperação de Usuários', type: 'error' });
             return;
@@ -41,7 +41,6 @@ router.post('/', function(req, res){
     User.save(function(err, usr){
         if (err) {
             // retorna mensagem de erro
-            // TODO retornar código http de erro
             res.status(400);
             if (err.code == 11000) // código para campo único
                 res.json({ message: 'Erro na inclusão de Usuário. Email já existe na base.', type: 'error' });
@@ -63,7 +62,6 @@ router.get('/:id', function(req, res){
     userModel.findById(req.params.id, '-password', function(err, usr){ // volta todos os campos menos o password (levemente diferente do find() lá de cima)
         if (err) {
             // retorna mensagem de erro
-            // TODO retornar código http de erro
             res.status(400);
             res.json({ message: 'Erro na recuperação de um Usuário por ID', type: 'error' });
             return;
@@ -77,7 +75,6 @@ router.put('/:id', function(req, res){
     userModel.findById(req.params.id, function(err, usr) {
         if (err) {
             // retorna mensagem de erro
-            // TODO retornar código http de erro
             res.status(400);
             res.json({ message: 'Erro na fase de recuperação de um Usuário por ID para edição', type: 'error' });
             return;
@@ -104,14 +101,13 @@ router.put('/:id', function(req, res){
         usr.save(function(err, usra){
             if (err) {
                 // retorna mensagem de erro
-                // TODO retornar código http de erro
                 res.status(400);
                 res.json({ message: 'Erro na edição de Usuário', type: 'error' });
                 return;
             }
             // enva email para usuário com senha temporária
             if (passwordTemp)
-                console.log('password temorário!!!!!!!', passwordTemp);
+                console.log('|----------> anote o password temorário!!!!!!!', passwordTemp);
             // Devolve o objeto salvo
             res.status(201);
             res.json(usra);
@@ -124,6 +120,7 @@ router.delete('/:id', function(req, res) {
     console.log('delete em usuários');
     userModel.remove({_id: req.params.id}, function(err, usr) {
         if (err) {
+            // reotrna mensagem de erro
             res.status(400);
             res.json({ message: 'Erro ao excluir elemento de Usuários', type: 'error' });
             return;

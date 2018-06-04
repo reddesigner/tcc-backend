@@ -13,7 +13,7 @@ router.get('/', function(req, res){
     permissionModel.find(function(err, objs){
         if (err) {
             // retorna mensagem de erro
-            // TODO retornar código http de erro
+            res.status(400);
             res.json({ message: 'Erro na recuperação de Permissões por Perfil', type: 'error' });
             return;
         }
@@ -27,7 +27,7 @@ router.put('/:id', function(req, res){
     permissionModel.findById(req.params.id, function(err, obj) {
         if (err) {
             // retorna mensagem de erro
-            // TODO retornar código http de erro
+            res.status(400);
             res.json({ message: 'Erro na fase de recuperação de uma Permissões por Perfil através de ID para edição', type: 'error' });
             return;
         }
@@ -45,7 +45,7 @@ console.log('a view é', req.body.view);
         obj.save(function(err, obja){
             if (err) {
                 // retorna mensagem de erro
-                // TODO retornar código http de erro
+                res.status(400);
                 res.json({ message: 'Erro na edição de Permissões por Perfil', type: 'error' });
                 return;
             }
