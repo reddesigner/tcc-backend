@@ -58,9 +58,9 @@ var TokenInterceptor = /** @class */ (function () {
         var _this = this;
         var started = Date.now();
         var ok;
-        //var serverUrl = 'http://localhost:3000/';
-        var serverUrl = 'http://localhost:4200/';
-        //var serverUrl = 'http://ec2-18-228-31-157.sa-east-1.compute.amazonaws.com:4200/';
+        //const serverUrl = 'http://localhost:3000/';
+        //const serverUrl = 'http://localhost:4200/';
+        var serverUrl = 'http://ec2-18-228-31-157.sa-east-1.compute.amazonaws.com:4200/';
         request = request.clone({
             setHeaders: {
                 'observe': 'response',
@@ -82,14 +82,18 @@ var TokenInterceptor = /** @class */ (function () {
         // Succeeds when there is a response; ignore other events
         function (event) {
             ok = event instanceof _angular_common_http__WEBPACK_IMPORTED_MODULE_2__["HttpResponse"] ? 'sucesso' : '';
-            console.log('auth.interceptor.ts ----- evento sucesso ', event);
+            //console.log('auth.interceptor.ts ----- evento sucesso ', event);
             if (event['headers']) {
                 //console.log('------------------------ --------------------- --------------------');
                 //console.log('auth.interceptor.ts -----', event['headers'].getAll('X-Powered-By'));
-                console.log('auth.interceptor.ts -----', event['headers'].getAll('x-permissions'));
+                //console.log('auth.interceptor.ts -----', event['headers'].getAll('x-permissions'));
+                //console.log('auth.interceptor.ts -----', event['headers'].getAll('x-refresh'));
                 //console.log('------------------------ --------------------- --------------------');
                 // envia as permissões para serviço de autenticação
-                _this.auth.setPermissions(event['headers'].get('x-permissions'));
+                if (event['headers'].get('x-permissions'))
+                    _this.auth.setPermissions(event['headers'].get('x-permissions'));
+                if (event['headers'].get('x-refresh'))
+                    _this.auth.setToken(event['headers'].get('x-refresh'));
             }
         }, 
         // Operation failed; error is an HttpErrorResponse
@@ -165,7 +169,7 @@ var AuthGuardService = /** @class */ (function () {
     };
     AuthGuardService.prototype.checkLogIn = function (url) {
         if (this.auth.isAuthenticated()) {
-            console.log('authGuard.service ----- is logged in | has permission:', this.auth.getPermissionForRoute(url));
+            //console.log('authGuard.service ----- está autenticado | tem permissão em:', this.auth.getPermissionForRoute(url));
             // checar se tem a permissão...
             if (this.auth.getPermissionForRoute(url))
                 return true;
@@ -206,7 +210,8 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _angular_common_http__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! @angular/common/http */ "./node_modules/@angular/common/fesm5/http.js");
 /* harmony import */ var rxjs__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! rxjs */ "./node_modules/rxjs/_esm5/index.js");
 /* harmony import */ var rxjs_operators__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! rxjs/operators */ "./node_modules/rxjs/_esm5/operators/index.js");
-/* harmony import */ var _message_service_message_service__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ../../message/service/message.service */ "./src/app/_controllers/message/service/message.service.ts");
+/* harmony import */ var _angular_router__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! @angular/router */ "./node_modules/@angular/router/fesm5/router.js");
+/* harmony import */ var _message_service_message_service__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ../../message/service/message.service */ "./src/app/_controllers/message/service/message.service.ts");
 var __decorate = (undefined && undefined.__decorate) || function (decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -221,24 +226,89 @@ var __metadata = (undefined && undefined.__metadata) || function (k, v) {
 
 
 
+
 // import { decode } from 'jwt-decode';
 // jwt-code de angular2-jwt (instalado com npm) não funcionou!
 var AuthService = /** @class */ (function () {
-    function AuthService(http, messageService) {
+    function AuthService(http, messageService, router) {
         this.http = http;
         this.messageService = messageService;
-        //public isLoggedIn = false;
+        this.router = router;
         this.currentUser = [];
         this.permissionList = [];
         this.authUrl = 'api/autenticar';
     }
+    // descodifica o token (JWT)
+    AuthService.prototype.parseJwt = function (token) {
+        var base64Url = token.split('.')[1];
+        var base64 = base64Url.replace('-', '+').replace('_', '/');
+        return JSON.parse(window.atob(base64));
+    };
+    ;
+    // verifica a data EXP do token com data local atual
+    AuthService.prototype.isExpired = function (token) {
+        // TODO este modelo está comparando data do servidor com data local... 
+        // deve haver um jeito melhor... creio que é preciso grava a data de quando o token é recebido...
+        //console.log('auth.service.ts --------------------------', token.exp);
+        if (new Date().getTime() > (token.exp * 1000)) {
+            //console.log('auth.service.ts -----------------------------------------> token expirado!', new Date().getTime() - (token.exp * 1000));
+            return true;
+        }
+        else {
+            //console.log(token);
+            //console.log('auth.service.ts -----------------------------------------> token válido ainda...', new Date().getTime() - (token.exp * 1000));
+            //console.log(new Date().getTime());
+            //console.log(token.exp * 1000);
+            return false;
+        }
+    };
+    ;
     AuthService.prototype.getToken = function () {
-        var tk = localStorage.getItem('x-token');
-        // TODO mehor a forma de tratar os 'tokens'... 
-        this.currentUser['name'] = localStorage.getItem('x-name');
-        this.currentUser['email'] = localStorage.getItem('x-email');
-        this.currentUser['role'] = localStorage.getItem('x-role');
-        return tk ? tk : '';
+        var _this = this;
+        var tk;
+        if (this.currenToken)
+            tk = this.currenToken;
+        else
+            tk = localStorage.getItem('x-token');
+        //
+        if (tk) {
+            //console.log('auth.service.ts ----- o token, recuperado do local storage, decodificado', this.parseJwt(tk));
+            var parse = this.parseJwt(tk);
+            if (this.isExpired(parse)) {
+                this.logout();
+                return '';
+            }
+            this.currentUser['name'] = parse.name;
+            this.currentUser['email'] = parse.email;
+            this.currentUser['role'] = parse.role;
+            this.currenToken = tk;
+            //
+            //
+            this.timer = setInterval(function (tm) {
+                if (_this.currenToken) {
+                    if (_this.isExpired(_this.parseJwt(_this.currenToken))) {
+                        //console.log('token expirado.......');
+                        clearInterval(_this.timer);
+                        _this.logout();
+                        _this.router.navigate(['/login']);
+                        _this.messageService.info('Usuário desligado por inatividade', false);
+                    }
+                    //console.log('token NÃO expirado.......');
+                }
+            }, 1000 * 60 * 5 // 5 min
+            );
+            //
+            //
+            return tk;
+        }
+        else {
+            return '';
+        }
+        //return  tk ? tk : '';
+    };
+    AuthService.prototype.setToken = function (token) {
+        localStorage.setItem('x-token', token);
+        this.currenToken = token;
     };
     AuthService.prototype.isAuthenticated = function () {
         var tk = this.getToken();
@@ -272,10 +342,7 @@ var AuthService = /** @class */ (function () {
             //console.log('auth.service.ts ----- to aqui no login', obj);
             //this.isLoggedIn = true;
             var tk = obj['x-access-token'];
-            localStorage.setItem('x-token', tk);
-            localStorage.setItem('x-name', obj['x-user-name']);
-            localStorage.setItem('x-email', obj['x-user-email']);
-            localStorage.setItem('x-role', obj['x-user-role']);
+            _this.setToken(tk);
             _this.currentUser['name'] = obj['x-user-name'];
             _this.currentUser['email'] = obj['x-user-email'];
             _this.currentUser['role'] = obj['x-user-role'];
@@ -286,10 +353,9 @@ var AuthService = /** @class */ (function () {
         //console.log('auth.service.ts ----- logout');
         localStorage.removeItem('x-token');
         localStorage.removeItem('x-permissions');
-        localStorage.removeItem('x-name');
-        localStorage.removeItem('x-email');
-        localStorage.removeItem('x-role');
+        this.permissionList = [];
         this.currentUser = [];
+        this.currenToken = '';
     };
     AuthService.prototype.handleError = function (operation, result) {
         var _this = this;
@@ -309,7 +375,8 @@ var AuthService = /** @class */ (function () {
             providedIn: 'root'
         }),
         __metadata("design:paramtypes", [_angular_common_http__WEBPACK_IMPORTED_MODULE_1__["HttpClient"],
-            _message_service_message_service__WEBPACK_IMPORTED_MODULE_4__["MessageService"]])
+            _message_service_message_service__WEBPACK_IMPORTED_MODULE_5__["MessageService"],
+            _angular_router__WEBPACK_IMPORTED_MODULE_4__["Router"]])
     ], AuthService);
     return AuthService;
 }());
@@ -940,7 +1007,7 @@ module.exports = "\r\n.playtest {\r\n    font-size: 240%;\r\n    line-height: .7
 /*! no static exports found */
 /***/ (function(module, exports) {
 
-module.exports = "<div class=\"container\">\n  <div class=\"container\">\n    <div class=\"row\">\n    <div class=\"col-4\">\n\n    </div>\n    <div class=\"col-4\">\n      \n      <div class=\"row mt-5\">\n        <div class=\"col\">\n          <div class=\"playtest\">\n            Portfolio <span class=\"small\">de</span> Projetos\n          </div>\n          <!--\n          <div class=\"play\">\n            <span class=\"text\">\n              <span>P</span>\n              <span>P</span>\n            </span>\n          </div>\n          -->\n        </div>\n      </div>\n      <div class=\"row mt-4\">\n        <div class=\"col\">\n          <div class=\"form-group\">\n            <label>E-mail</label>\n            <input type=\"text\" class=\"form-control\" [(ngModel)]=\"loginModel.email\">\n          </div>\n        </div>\n      </div>\n      <div class=\"row\">\n        <div class=\"col\">\n          <div class=\"form-group\">\n            <label>Senha</label>\n            <input type=\"password\" class=\"form-control\" [(ngModel)]=\"loginModel.password\">\n          </div>\n        </div>\n      </div>\n      <div class=\"row mt-3\">\n        <div class=\"col\">\n          <div class=\"form-group\">\n             TEMP: setup@email.com | sPa5f34KS\n            <button type=\"button\" class=\"btn btn-primary btn-block\" (click)=\"onLogin()\">Entrar</button>\n            <br>\n            <div class=\"align-center mt-1\">\n              <a href=\"#\">Esqueci minha senha</a>\n            </div>\n          </div>\n        </div>\n      </div>\n\n    </div>\n    <div class=\"col-4\">\n\n    </div>\n    </div>\n  </div>\n</div>"
+module.exports = "<div class=\"container\">\n  <div class=\"container\">\n    <div class=\"row\">\n    <div class=\"col-4\">\n\n    </div>\n    <div class=\"col-4\">\n      \n      <div class=\"row mt-5\">\n        <div class=\"col\">\n          <div class=\"playtest\">\n            Portfolio <span class=\"small\">de</span> Projetos\n          </div>\n          <!--\n          <div class=\"play\">\n            <span class=\"text\">\n              <span>P</span>\n              <span>P</span>\n            </span>\n          </div>\n          -->\n        </div>\n      </div>\n      <div class=\"row mt-4\">\n        <div class=\"col\">\n          <div class=\"form-group\">\n            <label>E-mail</label>\n            <input type=\"text\" class=\"form-control\" [(ngModel)]=\"loginModel.email\">\n          </div>\n        </div>\n      </div>\n      <div class=\"row\">\n        <div class=\"col\">\n          <div class=\"form-group\">\n            <label>Senha</label>\n            <input type=\"password\" class=\"form-control\" [(ngModel)]=\"loginModel.password\">\n          </div>\n        </div>\n      </div>\n      <div class=\"row mt-3\">\n        <div class=\"col\">\n          <div class=\"form-group\">\n             TEMP: redfrigerator@gmail.com | red123a\n            <button type=\"button\" class=\"btn btn-primary btn-block\" (click)=\"onLogin()\">Entrar</button>\n            <br>\n            <div class=\"align-center mt-1\">\n              <a href=\"#\">Esqueci minha senha</a>\n            </div>\n          </div>\n        </div>\n      </div>\n\n    </div>\n    <div class=\"col-4\">\n\n    </div>\n    </div>\n  </div>\n</div>"
 
 /***/ }),
 
@@ -981,9 +1048,9 @@ var LoginComponent = /** @class */ (function () {
         var _this = this;
         // validação
         this.serv.login(this.loginModel).subscribe(function (obj) {
-            console.log('login.componente.ts ----- e ai... aconteceu algo?', obj);
+            //console.log('login.componente.ts ----- e ai... aconteceu algo?', obj);
             if (obj.action && obj.action == 'logged in') {
-                console.log('login.componente.ts ----- para /home!', obj.action);
+                //console.log('login.componente.ts ----- logado... indo para /home!', obj.action);
                 _this.router.navigate(['/home/']);
             }
         });
@@ -1502,7 +1569,7 @@ var IndicadorService = /** @class */ (function () {
     IndicadorService.prototype.getIndicadorById = function (id) {
         console.log('indicador.service --- id que vai para get by id...', id);
         return this.http.get(this.indicadoresApiUrl + '/' + id).pipe(Object(rxjs_operators__WEBPACK_IMPORTED_MODULE_3__["tap"])(function () {
-            console.log('indicador.service --- TAP: editando indicador...');
+            //console.log('indicador.service --- TAP: editando indicador...');
         }), Object(rxjs_operators__WEBPACK_IMPORTED_MODULE_3__["catchError"])(this.handleError('getIndicadorById')));
     };
     // inserir novo
@@ -1539,7 +1606,10 @@ var IndicadorService = /** @class */ (function () {
             // console.error('handleError em indicador.service', error);
             _this.log(operation + " falhou: " + error.message);
             // this.message.error(`Houve uma falha na operação ${operation}`, true);
-            _this.message.error(error.error.message, true);
+            if (error.error.message)
+                _this.message.error(error.error.message, true);
+            else
+                _this.message.error('Erro não identificado. [ind.ser.' + operation + ']', true);
             // retorna um resultado vazio para app continuar rodando
             return Object(rxjs__WEBPACK_IMPORTED_MODULE_2__["of"])(result);
         };
@@ -2084,7 +2154,7 @@ module.exports = ""
 /*! no static exports found */
 /***/ (function(module, exports) {
 
-module.exports = "<div class=\"container\">\r\n  <nav aria-label=\"breadcrumb\">\r\n    <ol class=\"breadcrumb\">\r\n      <li class=\"breadcrumb-item\"><a routerLink=\"/home\">Home</a></li>\r\n      <li class=\"breadcrumb-item\"><a routerLink=\"/projeto\">Projetos</a></li>\r\n      <li class=\"breadcrumb-item active\" aria-current=\"page\">Novo Projeto</li>\r\n    </ol>\r\n  </nav>\r\n  <h2>Novo Projeto</h2>\r\n  <!--<small>Líder do Escritório de Projetos</small>-->\r\n  <hr>\r\n    <div class=\"row\">\r\n        <div class=\"col-6\">\r\n        <div class=\"form-group\">\r\n            <label>Nome</label>\r\n            <input type=\"text\" class=\"form-control\" [(ngModel)]=\"newProject.name\">\r\n        </div>\r\n        </div>\r\n    </div>\r\n    <div class=\"row\">\r\n        <div class=\"col-4\">\r\n            <div class=\"form-group\">\r\n                <label>Data de Início</label>\r\n                <input class=\"form-control datepicker\" readonly style=\"background: #fff\" #dateStart>\r\n            </div>\r\n        </div>\r\n        <div class=\"col-4\">\r\n            <div class=\"form-group\">\r\n                <label>Data de Previsão de Términio</label>\r\n                <input class=\"form-control datepicker\" readonly style=\"background: #fff\" #datePrevision>\r\n            </div>\r\n        </div>\r\n        <div class=\"col-4\">\r\n            <div class=\"form-group\">\r\n                <label>Data <b>real</b> de Téminio</label>\r\n                <input class=\"form-control datepicker\" readonly style=\"background: #fff\" #dateEnd>\r\n            </div>\r\n        </div>\r\n    </div>\r\n    <hr>\r\n    <div class=\"row\">\r\n        <div class=\"col-6\">\r\n            <div class=\"form-group\">\r\n                <label>Descrição</label>\r\n                <textarea class=\"form-control\" [(ngModel)]=\"newProject.description\"></textarea>\r\n            </div>\r\n        </div>\r\n    </div>\r\n    <div class=\"row\">\r\n        <div class=\"col-4\">\r\n            <div class=\"form-group\">\r\n                <label>Orçamento</label>\r\n                <input type=\"text\" class=\"form-control\" [(ngModel)]=\"newProject.budget\">\r\n            </div>\r\n        </div>\r\n        <div class=\"col-4\">\r\n            <div class=\"form-group\">\r\n                <label>Riscos</label>\r\n                <select class=\"form-control custom-select\" #selectRisk>\r\n                    <option value=\"Baixo\">Baixo risco</option>\r\n                    <option value=\"Médio\">Médio risco</option>\r\n                    <option value=\"Alto\">Alto risco</option>\r\n                </select>\r\n            </div>\r\n        </div>\r\n    </div>\r\n    <hr>\r\n    <div class=\"row\">\r\n        <div class=\"col-4\">\r\n            <div class=\"form-group\">\r\n                <label>Status</label>\r\n                <select class=\"form-control custom-select\" #selectStatus>\r\n                    <option value=\"Em análise\">Em análise</option>\r\n                    <option value=\"Análise realizada\">Análise realizada</option>\r\n                    <option value=\"Análise aprovada\">Análise aprovada</option>\r\n                    <option value=\"Iniciado\">Iniciado</option>\r\n                    <option value=\"Planejado\">Planejado</option>\r\n                    <option value=\"Em andamento\">Em andamento</option>\r\n                    <option value=\"Encerrado\">Encerrado</option>\r\n                    <option value=\"Cancelado\">Cancelado</option>\r\n                </select>\r\n            </div>\r\n        </div>\r\n        <div class=\"col-6\">\r\n            <!--\r\n            Este campo somente é útil na edição do status!\r\n            <div class=\"form-group\">\r\n                <label>Justificativa de mudança de Status</label>\r\n                <textarea class=\"form-control\" [(ngModel)]=\"newProject.justification\"></textarea>\r\n            </div>\r\n            -->\r\n        </div>\r\n    </div>\r\n    <hr>\r\n    <div class=\"row\">\r\n        <div class=\"col\">\r\n            <div class=\"form-group\">\r\n                <button type=\"button\" class=\"btn btn-primary\" (click)=\"onSave()\">Salvar</button>\r\n                &nbsp;\r\n                <button type=\"button\" class=\"btn btn-secondary\" (click)=\"goBack()\">Voltar</button>\r\n            </div>\r\n        </div>\r\n    </div>\r\n</div>\r\n\r\n<!-- \r\n<script>\r\n  $(document).ready(function(){\r\n    $('.datepicker').datepicker({\r\n        format: 'dd/mm/yyyy',\r\n        language: 'pt-BR'\r\n    });\r\n  })\r\n</script>\r\n-->"
+module.exports = "<div class=\"container\">\r\n  <nav aria-label=\"breadcrumb\">\r\n    <ol class=\"breadcrumb\">\r\n      <li class=\"breadcrumb-item\"><a routerLink=\"/home\">Home</a></li>\r\n      <li class=\"breadcrumb-item\"><a routerLink=\"/projeto\">Projetos</a></li>\r\n      <li class=\"breadcrumb-item active\" aria-current=\"page\">Novo Projeto</li>\r\n    </ol>\r\n  </nav>\r\n  <h2>Novo Projeto</h2>\r\n  <!--<small>Líder do Escritório de Projetos</small>-->\r\n  <hr>\r\n    <div class=\"row\">\r\n        <div class=\"col-6\">\r\n        <div class=\"form-group\">\r\n            <label>Nome</label>\r\n            <input type=\"text\" class=\"form-control\" [(ngModel)]=\"newProject.name\">\r\n        </div>\r\n        </div>\r\n    </div>\r\n    <div class=\"row\">\r\n        <div class=\"col-4\">\r\n            <div class=\"form-group\">\r\n                <label>Data de Início</label>\r\n                <input class=\"form-control datepicker\" readonly style=\"background: #fff\" #dateStart>\r\n            </div>\r\n        </div>\r\n        <div class=\"col-4\">\r\n            <div class=\"form-group\">\r\n                <label>Data de Previsão de Términio</label>\r\n                <input class=\"form-control datepicker\" readonly style=\"background: #fff\" #datePrevision>\r\n            </div>\r\n        </div>\r\n        <div class=\"col-4\">\r\n            <div class=\"form-group\">\r\n                <label>Data <b>real</b> de Téminio</label>\r\n                <input class=\"form-control datepicker\" readonly style=\"background: #fff\" #dateEnd>\r\n            </div>\r\n        </div>\r\n    </div>\r\n    <hr>\r\n    <div class=\"row\">\r\n        <div class=\"col-6\">\r\n            <div class=\"form-group\">\r\n                <label>Descrição</label>\r\n                <textarea class=\"form-control\" [(ngModel)]=\"newProject.description\"></textarea>\r\n            </div>\r\n        </div>\r\n        <div class=\"col-2\"></div>\r\n        <div class=\"col-4\">\r\n            <div class=\"form-group\">\r\n                <label>Gerente</label>\r\n                <select class=\"form-control custom-select\" #selectManager>\r\n                    <option value=''></option>\r\n                    <option *ngFor=\"let user of listUsers\" value=\"{{user._id}}\" [attr.data-name]=\"user.name\" [attr.data-email]=\"user.email\" [attr.data-role]=\"user.role\">{{user.name}}</option>\r\n                </select>\r\n            </div>\r\n        </div>\r\n    </div>\r\n    <div class=\"row\">\r\n        <div class=\"col-4\">\r\n            <div class=\"form-group\">\r\n                <label>Orçamento</label>\r\n                <input type=\"text\" class=\"form-control\" [(ngModel)]=\"newProject.budget\">\r\n            </div>\r\n        </div>\r\n        <div class=\"col-4\">\r\n            <div class=\"form-group\">\r\n                <label>Riscos</label>\r\n                <select class=\"form-control custom-select\" #selectRisk>\r\n                    <option value=\"Baixo\">Baixo risco</option>\r\n                    <option value=\"Médio\">Médio risco</option>\r\n                    <option value=\"Alto\">Alto risco</option>\r\n                </select>\r\n            </div>\r\n        </div>\r\n    </div>\r\n    <hr>\r\n    <div class=\"row\">\r\n        <div class=\"col-4\">\r\n            <div class=\"form-group\">\r\n                <label>Status</label>\r\n                <select class=\"form-control custom-select\" #selectStatus>\r\n                    <option value=\"Em análise\">Em análise</option>\r\n                    <option value=\"Análise realizada\">Análise realizada</option>\r\n                    <option value=\"Análise aprovada\">Análise aprovada</option>\r\n                    <option value=\"Iniciado\">Iniciado</option>\r\n                    <option value=\"Planejado\">Planejado</option>\r\n                    <option value=\"Em andamento\">Em andamento</option>\r\n                    <option value=\"Encerrado\">Encerrado</option>\r\n                    <option value=\"Cancelado\">Cancelado</option>\r\n                </select>\r\n            </div>\r\n        </div>\r\n        <div class=\"col-6\">\r\n            <!--\r\n            Este campo somente é útil na edição do status!\r\n            <div class=\"form-group\">\r\n                <label>Justificativa de mudança de Status</label>\r\n                <textarea class=\"form-control\" [(ngModel)]=\"newProject.justification\"></textarea>\r\n            </div>\r\n            -->\r\n        </div>\r\n    </div>\r\n    <hr>\r\n    <div class=\"row\">\r\n        <div class=\"col\">\r\n            <div class=\"form-group\">\r\n                <button type=\"button\" class=\"btn btn-primary\" (click)=\"onSave()\">Salvar</button>\r\n                &nbsp;\r\n                <button type=\"button\" class=\"btn btn-secondary\" (click)=\"goBack()\">Voltar</button>\r\n            </div>\r\n        </div>\r\n    </div>\r\n</div>\r\n\r\n<!-- \r\n<script>\r\n  $(document).ready(function(){\r\n    $('.datepicker').datepicker({\r\n        format: 'dd/mm/yyyy',\r\n        language: 'pt-BR'\r\n    });\r\n  })\r\n</script>\r\n-->"
 
 /***/ }),
 
@@ -2129,6 +2199,13 @@ var ProjetoCreateComponent = /** @class */ (function () {
             language: 'pt-BR'
         });
         //
+        this.getManagers();
+    };
+    ProjetoCreateComponent.prototype.getManagers = function () {
+        var _this = this;
+        this.projetoService.getGerentes().subscribe(function (obj) {
+            _this.listUsers = obj;
+        });
     };
     ProjetoCreateComponent.prototype.onSave = function () {
         var _this = this;
@@ -2151,7 +2228,12 @@ var ProjetoCreateComponent = /** @class */ (function () {
             this.newProject.datePrevision = new Date(this.formatDate(this.datePrevision.nativeElement.value));
         this.newProject.risk = this.selectRisk.nativeElement.value;
         this.newProject.status = this.selectStatus.nativeElement.value;
-        console.log(this.newProject);
+        this.newProject.manager = {
+            _id: this.selectManager.nativeElement.value,
+            name: this.selectManager.nativeElement.selectedOptions[0].dataset.name,
+            email: this.selectManager.nativeElement.selectedOptions[0].dataset.email,
+            role: this.selectManager.nativeElement.selectedOptions[0].dataset.role
+        };
         //
         return true;
     };
@@ -2183,6 +2265,10 @@ var ProjetoCreateComponent = /** @class */ (function () {
         Object(_angular_core__WEBPACK_IMPORTED_MODULE_0__["ViewChild"])('selectStatus'),
         __metadata("design:type", Object)
     ], ProjetoCreateComponent.prototype, "selectStatus", void 0);
+    __decorate([
+        Object(_angular_core__WEBPACK_IMPORTED_MODULE_0__["ViewChild"])('selectManager'),
+        __metadata("design:type", Object)
+    ], ProjetoCreateComponent.prototype, "selectManager", void 0);
     ProjetoCreateComponent = __decorate([
         Object(_angular_core__WEBPACK_IMPORTED_MODULE_0__["Component"])({
             selector: 'app-projeto-create',
@@ -2294,7 +2380,7 @@ module.exports = ""
 /*! no static exports found */
 /***/ (function(module, exports) {
 
-module.exports = "<div class=\"container\">\r\n  <nav aria-label=\"breadcrumb\">\r\n    <ol class=\"breadcrumb\">\r\n      <li class=\"breadcrumb-item\"><a routerLink=\"/home\">Home</a></li>\r\n      <li class=\"breadcrumb-item\"><a routerLink=\"/projeto\">Projetos</a></li>\r\n      <li class=\"breadcrumb-item active\" aria-current=\"page\">Editar Projeto</li>\r\n    </ol>\r\n  </nav>\r\n  <h2>Editar Projeto</h2>\r\n  <!--<small>Líder do Escritório de Projetos</small>-->\r\n  <hr>\r\n    <div class=\"row\">\r\n        <div class=\"col-6\">\r\n        <div class=\"form-group\">\r\n            <label>Nome</label>\r\n            <input type=\"text\" class=\"form-control\" [(ngModel)]=\"currentProject.name\">\r\n        </div>\r\n        </div>\r\n    </div>\r\n    <div class=\"row\">\r\n        <div class=\"col-4\">\r\n            <div class=\"form-group\">\r\n                <label>Data de Início</label>\r\n                <input class=\"form-control datepicker\" readonly style=\"background: #fff\" value=\"{{initDateStart}}\" #dateStart>\r\n            </div>\r\n        </div>\r\n        <div class=\"col-4\">\r\n            <div class=\"form-group\">\r\n                <label>Data de Previsão de Términio</label>\r\n                <input class=\"form-control datepicker\" readonly style=\"background: #fff\" value=\"{{initDatePrevision}}\" #datePrevision>\r\n            </div>\r\n        </div>\r\n        <div class=\"col-4\">\r\n            <div class=\"form-group\">\r\n                <label>Data <b>real</b> de Téminio</label>\r\n                <input class=\"form-control datepicker\" readonly style=\"background: #fff\" value=\"{{initDateEnd}}\" #dateEnd>\r\n            </div>\r\n        </div>\r\n    </div>\r\n    <hr>\r\n    <div class=\"row\">\r\n        <div class=\"col-6\">\r\n            <div class=\"form-group\">\r\n                <label>Descrição</label>\r\n                <textarea class=\"form-control\" [(ngModel)]=\"currentProject.description\"></textarea>\r\n            </div>\r\n        </div>\r\n    </div>\r\n    <div class=\"row\">\r\n        <div class=\"col-4\">\r\n            <div class=\"form-group\">\r\n                <label>Orçamento</label>\r\n                <input type=\"text\" class=\"form-control\" [(ngModel)]=\"currentProject.budget\">\r\n            </div>\r\n        </div>\r\n        <div class=\"col-4\">\r\n            <div class=\"form-group\">\r\n                <label>Riscos</label>\r\n                <select class=\"form-control custom-select\" #selectRisk>\r\n                    <option value=\"Baixo\" [selected]=\"currentProject.risk == 'Baixo'\">Baixo risco</option>\r\n                    <option value=\"Médio\" [selected]=\"currentProject.risk == 'Médio'\">Médio risco</option>\r\n                    <option value=\"Alto\" [selected]=\"currentProject.risk == 'Alto'\">Alto risco</option>\r\n                </select>\r\n            </div>\r\n        </div>\r\n    </div>\r\n    <hr>\r\n    <div class=\"row\">\r\n        <div class=\"col-4\">\r\n            <div class=\"form-group\">\r\n                <label>Status</label>\r\n                <select class=\"form-control custom-select\" #selectStatus (change)=\"changeStatus($event)\">\r\n                    <option value=\"Em análise\" [selected]=\"currentProject.status == 'Em análise'\">Em análise</option>\r\n                    <option value=\"Análise realizada\" [selected]=\"currentProject.status == 'Análise realizada'\">Análise realizada</option>\r\n                    <option value=\"Análise aprovada\" [selected]=\"currentProject.status == 'Análise aprovada'\">Análise aprovada</option>\r\n                    <option value=\"Iniciado\" [selected]=\"currentProject.status == 'Iniciado'\">Iniciado</option>\r\n                    <option value=\"Planejado\" [selected]=\"currentProject.status == 'Planejado'\">Planejado</option>\r\n                    <option value=\"Em andamento\" [selected]=\"currentProject.status == 'Em andamento'\">Em andamento</option>\r\n                    <option value=\"Encerrado\" [selected]=\"currentProject.status == 'Encerrado'\">Encerrado</option>\r\n                    <option value=\"Cancelado\" [selected]=\"currentProject.status == 'Cancelado'\">Cancelado</option>\r\n                </select>\r\n            </div>\r\n        </div>\r\n        <div class=\"col-6\">\r\n            <div class=\"form-group\">\r\n                <label>Justificativa de mudança de Status</label>\r\n                <textarea class=\"form-control\" [(ngModel)]=\"currentProject.justification\" [disabled]=\"disbleJustification\"></textarea>\r\n            </div>\r\n        </div>\r\n    </div>\r\n    <hr>\r\n    <div class=\"row\">\r\n        <div class=\"col\">\r\n            <div class=\"form-group\">\r\n                <button type=\"button\" class=\"btn btn-primary\" (click)=\"onSave()\">Salvar</button>\r\n                &nbsp;\r\n                <button type=\"button\" class=\"btn btn-secondary\" (click)=\"goBack()\">Voltar</button>\r\n            </div>\r\n        </div>\r\n    </div>\r\n</div>\r\n"
+module.exports = "<div class=\"container\">\r\n  <nav aria-label=\"breadcrumb\">\r\n    <ol class=\"breadcrumb\">\r\n      <li class=\"breadcrumb-item\"><a routerLink=\"/home\">Home</a></li>\r\n      <li class=\"breadcrumb-item\"><a routerLink=\"/projeto\">Projetos</a></li>\r\n      <li class=\"breadcrumb-item active\" aria-current=\"page\">Editar Projeto</li>\r\n    </ol>\r\n  </nav>\r\n  <h2>Editar Projeto</h2>\r\n  <!--<small>Líder do Escritório de Projetos</small>-->\r\n  <hr>\r\n    <div class=\"row\">\r\n        <div class=\"col-6\">\r\n        <div class=\"form-group\">\r\n            <label>Nome</label>\r\n            <input type=\"text\" class=\"form-control\" [(ngModel)]=\"currentProject.name\">\r\n        </div>\r\n        </div>\r\n    </div>\r\n    <div class=\"row\">\r\n        <div class=\"col-4\">\r\n            <div class=\"form-group\">\r\n                <label>Data de Início</label>\r\n                <input class=\"form-control datepicker\" readonly style=\"background: #fff\" value=\"{{initDateStart}}\" #dateStart>\r\n            </div>\r\n        </div>\r\n        <div class=\"col-4\">\r\n            <div class=\"form-group\">\r\n                <label>Data de Previsão de Términio</label>\r\n                <input class=\"form-control datepicker\" readonly style=\"background: #fff\" value=\"{{initDatePrevision}}\" #datePrevision>\r\n            </div>\r\n        </div>\r\n        <div class=\"col-4\">\r\n            <div class=\"form-group\">\r\n                <label>Data <b>real</b> de Téminio</label>\r\n                <input class=\"form-control datepicker\" readonly style=\"background: #fff\" value=\"{{initDateEnd}}\" #dateEnd>\r\n            </div>\r\n        </div>\r\n    </div>\r\n    <hr>\r\n    <div class=\"row\">\r\n        <div class=\"col-6\">\r\n            <div class=\"form-group\">\r\n                <label>Descrição</label>\r\n                <textarea class=\"form-control\" [(ngModel)]=\"currentProject.description\"></textarea>\r\n            </div>\r\n        </div>\r\n        <div class=\"col-2\"></div>\r\n        <div class=\"col-4\">\r\n            <div class=\"form-group\">\r\n                <label>Gerente</label>\r\n                <select class=\"form-control custom-select\" [compareWith]=\"byId\" [(ngModel)]=\"currentProject.manager\">\r\n                    <option></option>\r\n                    <ng-template [ngIf]=\"listUsers\">\r\n                        <option *ngFor=\"let c of listUsers\" [ngValue]=\"c\">{{c.name}}</option>\r\n                    </ng-template>\r\n                </select>\r\n            </div>\r\n        </div>\r\n    </div>\r\n    <div class=\"row\">\r\n        <div class=\"col-4\">\r\n            <div class=\"form-group\">\r\n                <label>Orçamento</label>\r\n                <input type=\"text\" class=\"form-control\" [(ngModel)]=\"currentProject.budget\">\r\n            </div>\r\n        </div>\r\n        <div class=\"col-4\">\r\n            <div class=\"form-group\">\r\n                <label>Riscos</label>\r\n                <select class=\"form-control custom-select\" #selectRisk>\r\n                    <option value=\"Baixo\" [selected]=\"currentProject.risk == 'Baixo'\">Baixo risco</option>\r\n                    <option value=\"Médio\" [selected]=\"currentProject.risk == 'Médio'\">Médio risco</option>\r\n                    <option value=\"Alto\" [selected]=\"currentProject.risk == 'Alto'\">Alto risco</option>\r\n                </select>\r\n            </div>\r\n        </div>\r\n    </div>\r\n    <hr>\r\n    <div class=\"row\">\r\n        <div class=\"col-4\">\r\n            <div class=\"form-group\">\r\n                <label>Status</label>\r\n                <select class=\"form-control custom-select\" #selectStatus (change)=\"changeStatus($event)\">\r\n                    <option value=\"Em análise\" [selected]=\"currentProject.status == 'Em análise'\">Em análise</option>\r\n                    <option value=\"Análise realizada\" [selected]=\"currentProject.status == 'Análise realizada'\">Análise realizada</option>\r\n                    <option value=\"Análise aprovada\" [selected]=\"currentProject.status == 'Análise aprovada'\">Análise aprovada</option>\r\n                    <option value=\"Iniciado\" [selected]=\"currentProject.status == 'Iniciado'\">Iniciado</option>\r\n                    <option value=\"Planejado\" [selected]=\"currentProject.status == 'Planejado'\">Planejado</option>\r\n                    <option value=\"Em andamento\" [selected]=\"currentProject.status == 'Em andamento'\">Em andamento</option>\r\n                    <option value=\"Encerrado\" [selected]=\"currentProject.status == 'Encerrado'\">Encerrado</option>\r\n                    <option value=\"Cancelado\" [selected]=\"currentProject.status == 'Cancelado'\">Cancelado</option>\r\n                </select>\r\n            </div>\r\n        </div>\r\n        <div class=\"col-6\">\r\n            <div class=\"form-group\">\r\n                <label>Justificativa de mudança de Status</label>\r\n                <textarea class=\"form-control\" [(ngModel)]=\"currentProject.justification\" [disabled]=\"disbleJustification\"></textarea>\r\n            </div>\r\n        </div>\r\n    </div>\r\n    <hr>\r\n    <div class=\"row\">\r\n        <div class=\"col\">\r\n            <div class=\"form-group\">\r\n                <button type=\"button\" class=\"btn btn-primary\" (click)=\"onSave()\">Salvar</button>\r\n                &nbsp;\r\n                <button type=\"button\" class=\"btn btn-secondary\" (click)=\"goBack()\">Voltar</button>\r\n            </div>\r\n        </div>\r\n    </div>\r\n</div>\r\n"
 
 /***/ }),
 
@@ -2356,7 +2442,7 @@ var ProjetoEditComponent = /** @class */ (function () {
         var id = this.route.snapshot.paramMap.get('id');
         this.projetoService.getProjetoById(id).subscribe(function (prj) {
             _this.currentProject = prj;
-            console.log(_this.currentProject);
+            //console.log('projeto-edit.componente.ts ----- ', this.currentProject);
             // formatar e imprimir datas
             if (_this.currentProject.dateStart) {
                 var ds = new Date(_this.currentProject.dateStart);
@@ -2380,6 +2466,17 @@ var ProjetoEditComponent = /** @class */ (function () {
                 _this.initDatePrevision = dss;
             }
         });
+        //
+        this.getManagers();
+    };
+    ProjetoEditComponent.prototype.getManagers = function () {
+        var _this = this;
+        this.projetoService.getGerentes().subscribe(function (obj) {
+            _this.listUsers = obj;
+        });
+    };
+    ProjetoEditComponent.prototype.byId = function (item1, item2) {
+        return item1._id === item2._id;
     };
     ProjetoEditComponent.prototype.onSave = function () {
         var _this = this;
@@ -2402,9 +2499,9 @@ var ProjetoEditComponent = /** @class */ (function () {
             this.currentProject.datePrevision = new Date(this.formatDate(this.datePrevision.nativeElement.value));
         this.currentProject.risk = this.selectRisk.nativeElement.value;
         this.currentProject.status = this.selectStatus.nativeElement.value;
-        console.log(this.currentProject);
+        console.log('projeto-edit.component.ts ---- projeto antes de ser salvo', this.currentProject);
         if (!this.disbleJustification && this.currentProject.justification == undefined) {
-            console.log('É necessário escrever uma justificativa');
+            console.log('projeto-edit.componente.ts ----- É necessário escrever uma justificativa');
             this.message.warning('Essa mudança de status exige que uma justificativa seja informada');
             return false;
             // TODO mandar tbm o usuario e a data da alteração de status!!!!!!!!!! tenho que pegar o usuário logado!!!!!!!!!!!
@@ -2545,7 +2642,7 @@ var ProjetoEquipeComponent = /** @class */ (function () {
         this.projetoService.getProjetoById(id).subscribe(function (prj) {
             _this.projetoRef = prj;
             _this.projetoUsuariosAlocados = prj.team;
-            console.log('get projeto', prj);
+            console.log('projeto-equipe.component.ts ----- get projeto', prj);
             _this.checkAlocadosDisponiveis();
         });
     };
@@ -2553,7 +2650,7 @@ var ProjetoEquipeComponent = /** @class */ (function () {
         var _this = this;
         this.usuarioService.getUsuarios().subscribe(function (usrs) {
             _this.usuarioRef = usrs;
-            console.log('get usuarios', usrs);
+            console.log('projeto-equipe.component.ts ----- get usuarios', usrs);
             _this.checkAlocadosDisponiveis();
         });
     };
@@ -2561,7 +2658,7 @@ var ProjetoEquipeComponent = /** @class */ (function () {
         var _this = this;
         this.projetoRef.team = this.projetoUsuariosAlocados;
         this.projetoService.putProjeto(this.projetoRef, 'equipe').subscribe(function (prj) {
-            console.log('projeto editado', prj);
+            console.log('projeto-equipe.component.ts ----- projeto editado', prj);
             if (_this.projetoRef.team.length == 0) {
                 _this.message.warning('Nenhum projeto deveria ficar sem time', false);
             }
@@ -2638,7 +2735,7 @@ module.exports = ""
 /*! no static exports found */
 /***/ (function(module, exports) {
 
-module.exports = "<div class=\"container\">\r\n  <nav aria-label=\"breadcrumb\">\r\n    <ol class=\"breadcrumb\">\r\n      <li class=\"breadcrumb-item\"><a routerLink=\"/home\">Home</a></li>\r\n      <li class=\"breadcrumb-item\"><a routerLink=\"/projeto\">Projetos</a></li>\r\n      <li class=\"breadcrumb-item active\" aria-current=\"page\">Indicadores do Projeto</li>\r\n    </ol>\r\n  </nav>\r\n  <h2>Indicadores do Projeto</h2>\r\n  <hr>\r\n\r\n  <h4>Nome do Projeto: {{projetoRef.name}}</h4>\r\n\r\n  <div class=\"accordion mt-3\" id=\"accordionExample\">\r\n  <div class=\"card\">\r\n    <div class=\"card-header\" id=\"headingOne\">\r\n      <h5 class=\"mb-0\">\r\n        <button class=\"btn btn-link\" type=\"button\" data-toggle=\"collapse\" data-target=\"#collapseOne\" aria-expanded=\"true\" aria-controls=\"collapseOne\">\r\n          Fase 1 - Iniciação ou Conceito\r\n          <span class=\"badge badge-secondary badge-pill ml-2\">{{projetoIndicadoresSelecionadosF1.length}}</span>\r\n        </button>\r\n      </h5>\r\n    </div>\r\n    <div id=\"collapseOne\" class=\"collapse\" aria-labelledby=\"headingOne\" data-parent=\"#accordionExample\"> <!-- class=show para iniciar aberto -->\r\n      <div class=\"card-body\">\r\n        \r\n          <div class=\"row\">\r\n            <div class=\"col-md-5 mb-4\">\r\n                <h4 class=\"d-flex justify-content-between align-items-center mb-3\">\r\n                    <span class=\"text-muted\">Indicadores do Projeto - Fase 1</span>\r\n                    <span class=\"badge badge-secondary badge-pill\">{{projetoIndicadoresSelecionadosF1.length}}</span>\r\n                </h4>\r\n                <ul class=\"list-group mb-3\">\r\n                    <li class=\"list-group-item d-flex justify-content-between lh-condensed\" *ngFor=\"let ind1 of projetoIndicadoresSelecionadosF1\">\r\n                        <div>\r\n                            <h6 class=\"mt-2\"><b>{{ind1.name}}</b></h6>\r\n                            <div class=\"row mt-4\">\r\n                              <div class=\"col-5\">\r\n                                <div class=\"form-group\">\r\n                                  <label class=\"small\">Valor</label>\r\n                                  <input type=\"text\" class=\"form-control form-control-sm\" [(ngModel)]=\"ind1.value\">\r\n                                </div>\r\n                              </div>\r\n                            </div>\r\n                            <div class=\"row mt-2\">\r\n                              <div class=\"col-12\">\r\n                                  <label class=\"small\">Valores limítrofes (para controle do indicador)</label>\r\n                              </div>\r\n                            </div>\r\n                            <div class=\"row\">\r\n                                <div class=\"col-5\">\r\n                                    <input class=\"form-control form-control-sm\" placeholder=\"Mínimo\" type=\"text\" [(ngModel)]=\"ind1.min\">\r\n                                </div>\r\n                                <div class=\"col-5\">\r\n                                    <input class=\"form-control form-control-sm\" placeholder=\"Máximo\" type=\"text\" [(ngModel)]=\"ind1.max\">\r\n                                </div>\r\n                                <div class=\"col-2\"></div>\r\n                            </div>\r\n                        </div>\r\n                        <div>\r\n                          <button type=\"button\" class=\"btn btn-secondary btn-sm\" (click)=\"removeItem(ind1, 1)\">&times;</button>\r\n                        </div>\r\n                    </li>\r\n                </ul>\r\n            </div>\r\n            <div class=\"col-md-1\"></div>\r\n            <div class=\"col-md-5 mb-4\">\r\n                <h4 class=\"d-flex justify-content-between align-items-center mb-3\">\r\n                    <span class=\"text-muted\">Indicadores disponíveis</span>\r\n                    <span class=\"badge badge-secondary badge-pill\">{{indicadoresRef1.length}}</span>\r\n                </h4>\r\n                <ul class=\"list-group mb-3\">\r\n                    <li class=\"list-group-item d-flex justify-content-between lh-condensed\" *ngFor=\"let ind of indicadoresRef1\">\r\n                        <div>\r\n                            <h6 class=\"my-0\">{{ind.name}}</h6>\r\n                        </div>\r\n                        <button type=\"button\" class=\"btn btn-secondary btn-sm\" (click)=\"insertItem(ind, 1)\">Inserir</button>\r\n                    </li>\r\n                </ul>\r\n            </div>\r\n            <div class=\"col-md-1\"></div>\r\n        </div>\r\n\r\n      </div>\r\n    </div>\r\n  </div>\r\n  <div class=\"card\">\r\n    <div class=\"card-header\" id=\"headingTwo\">\r\n      <h5 class=\"mb-0\">\r\n        <button class=\"btn btn-link collapsed\" type=\"button\" data-toggle=\"collapse\" data-target=\"#collapseTwo\" aria-expanded=\"false\" aria-controls=\"collapseTwo\">\r\n          Fase 2 - Elaboração\r\n          <span class=\"badge badge-secondary badge-pill ml-2\">{{projetoIndicadoresSelecionadosF2.length}}</span>\r\n        </button>\r\n      </h5>\r\n    </div>\r\n    <div id=\"collapseTwo\" class=\"collapse\" aria-labelledby=\"headingTwo\" data-parent=\"#accordionExample\">\r\n      <div class=\"card-body\">\r\n        \r\n          <div class=\"row\">\r\n            <div class=\"col-md-5 mb-4\">\r\n                <h4 class=\"d-flex justify-content-between align-items-center mb-3\">\r\n                    <span class=\"text-muted\">Indicadores do Projeto - Fase 2</span>\r\n                    <span class=\"badge badge-secondary badge-pill\">{{projetoIndicadoresSelecionadosF2.length}}</span>\r\n                </h4>\r\n                <ul class=\"list-group mb-3\">\r\n                    <li class=\"list-group-item d-flex justify-content-between lh-condensed\" *ngFor=\"let ind2 of projetoIndicadoresSelecionadosF2\">\r\n                        <div>\r\n                            <h6 class=\"mt-2\"><b>{{ind2.name}}</b></h6>\r\n                            <div class=\"row mt-4\">\r\n                              <div class=\"col-5\">\r\n                                <div class=\"form-group\">\r\n                                  <label class=\"small\">Valor</label>\r\n                                  <input type=\"text\" class=\"form-control form-control-sm\" [(ngModel)]=\"ind2.value\">\r\n                                </div>\r\n                              </div>\r\n                            </div>\r\n                            <div class=\"row mt-2\">\r\n                              <div class=\"col-12\">\r\n                                  <label class=\"small\">Valores limítrofes (para controle do indicador)</label>\r\n                              </div>\r\n                            </div>\r\n                            <div class=\"row\">\r\n                                <div class=\"col-5\">\r\n                                    <input class=\"form-control form-control-sm\" placeholder=\"Mínimo\" type=\"text\" [(ngModel)]=\"ind2.min\">\r\n                                </div>\r\n                                <div class=\"col-5\">\r\n                                    <input class=\"form-control form-control-sm\" placeholder=\"Máximo\" type=\"text\" [(ngModel)]=\"ind2.max\">\r\n                                </div>\r\n                                <div class=\"col-2\"></div>\r\n                            </div>\r\n                        </div>\r\n                        <div>\r\n                          <button type=\"button\" class=\"btn btn-secondary btn-sm\" (click)=\"removeItem(ind2, 2)\">&times;</button>\r\n                        </div>\r\n                    </li>\r\n                </ul>\r\n            </div>\r\n            <div class=\"col-md-1\"></div>\r\n            <div class=\"col-md-5 mb-4\">\r\n                <h4 class=\"d-flex justify-content-between align-items-center mb-3\">\r\n                    <span class=\"text-muted\">Indicadores disponíveis</span>\r\n                    <span class=\"badge badge-secondary badge-pill\">{{indicadoresRef2.length}}</span>\r\n                </h4>\r\n                <ul class=\"list-group mb-3\">\r\n                    <li class=\"list-group-item d-flex justify-content-between lh-condensed\" *ngFor=\"let ind of indicadoresRef2\">\r\n                        <div>\r\n                            <h6 class=\"my-0\">{{ind.name}}</h6>\r\n                        </div>\r\n                        <button type=\"button\" class=\"btn btn-secondary btn-sm\" (click)=\"insertItem(ind, 2)\">Inserir</button>\r\n                    </li>\r\n                </ul>\r\n            </div>\r\n            <div class=\"col-md-1\"></div>\r\n        </div>\r\n\r\n      </div>\r\n    </div>\r\n  </div>\r\n  <div class=\"card\">\r\n    <div class=\"card-header\" id=\"headingThree\">\r\n      <h5 class=\"mb-0\">\r\n        <button class=\"btn btn-link collapsed\" type=\"button\" data-toggle=\"collapse\" data-target=\"#collapseThree\" aria-expanded=\"false\" aria-controls=\"collapseThree\">\r\n          Fase 3 - Construção\r\n          <span class=\"badge badge-secondary badge-pill ml-2\">{{projetoIndicadoresSelecionadosF3.length}}</span>\r\n        </button>\r\n      </h5>\r\n    </div>\r\n    <div id=\"collapseThree\" class=\"collapse\" aria-labelledby=\"headingThree\" data-parent=\"#accordionExample\">\r\n      <div class=\"card-body\">\r\n        \r\n          <div class=\"row\">\r\n            <div class=\"col-md-5 mb-4\">\r\n                <h4 class=\"d-flex justify-content-between align-items-center mb-3\">\r\n                    <span class=\"text-muted\">Indicadores do Projeto - Fase 3</span>\r\n                    <span class=\"badge badge-secondary badge-pill\">{{projetoIndicadoresSelecionadosF3.length}}</span>\r\n                </h4>\r\n                <ul class=\"list-group mb-3\">\r\n                    <li class=\"list-group-item d-flex justify-content-between lh-condensed\" *ngFor=\"let ind3 of projetoIndicadoresSelecionadosF3\">\r\n                        <div>\r\n                            <h6 class=\"mt-2\"><b>{{ind3.name}}</b></h6>\r\n                            <div class=\"row mt-4\">\r\n                              <div class=\"col-5\">\r\n                                <div class=\"form-group\">\r\n                                  <label class=\"small\">Valor</label>\r\n                                  <input type=\"text\" class=\"form-control form-control-sm\" [(ngModel)]=\"ind3.value\">\r\n                                </div>\r\n                              </div>\r\n                            </div>\r\n                            <div class=\"row mt-2\">\r\n                              <div class=\"col-12\">\r\n                                  <label class=\"small\">Valores limítrofes (para controle do indicador)</label>\r\n                              </div>\r\n                            </div>\r\n                            <div class=\"row\">\r\n                                <div class=\"col-5\">\r\n                                    <input class=\"form-control form-control-sm\" placeholder=\"Mínimo\" type=\"text\" [(ngModel)]=\"ind3.min\">\r\n                                </div>\r\n                                <div class=\"col-5\">\r\n                                    <input class=\"form-control form-control-sm\" placeholder=\"Máximo\" type=\"text\" [(ngModel)]=\"ind3.max\">\r\n                                </div>\r\n                                <div class=\"col-2\"></div>\r\n                            </div>\r\n                        </div>\r\n                        <div>\r\n                          <button type=\"button\" class=\"btn btn-secondary btn-sm\" (click)=\"removeItem(ind3, 3)\">&times;</button>\r\n                        </div>\r\n                    </li>\r\n                </ul>\r\n            </div>\r\n            <div class=\"col-md-1\"></div>\r\n            <div class=\"col-md-5 mb-4\">\r\n                <h4 class=\"d-flex justify-content-between align-items-center mb-3\">\r\n                    <span class=\"text-muted\">Indicadores disponíveis</span>\r\n                    <span class=\"badge badge-secondary badge-pill\">{{indicadoresRef3.length}}</span>\r\n                </h4>\r\n                <ul class=\"list-group mb-3\">\r\n                    <li class=\"list-group-item d-flex justify-content-between lh-condensed\" *ngFor=\"let ind of indicadoresRef3\">\r\n                        <div>\r\n                            <h6 class=\"my-0\">{{ind.name}}</h6>\r\n                        </div>\r\n                        <button type=\"button\" class=\"btn btn-secondary btn-sm\" (click)=\"insertItem(ind, 3)\">Inserir</button>\r\n                    </li>\r\n                </ul>\r\n            </div>\r\n            <div class=\"col-md-1\"></div>\r\n        </div>\r\n\r\n      </div>\r\n    </div>\r\n  </div>\r\n  <div class=\"card\">\r\n    <div class=\"card-header\" id=\"headingFour\">\r\n      <h5 class=\"mb-0\">\r\n        <button class=\"btn btn-link collapsed\" type=\"button\" data-toggle=\"collapse\" data-target=\"#collapseFour\" aria-expanded=\"false\" aria-controls=\"collapseFour\">\r\n          Fase 4 - Transição\r\n          <span class=\"badge badge-secondary badge-pill ml-2\">{{projetoIndicadoresSelecionadosF4.length}}</span>\r\n        </button>\r\n      </h5>\r\n    </div>\r\n    <div id=\"collapseFour\" class=\"collapse\" aria-labelledby=\"headingFour\" data-parent=\"#accordionExample\">\r\n      <div class=\"card-body\">\r\n        \r\n          <div class=\"row\">\r\n            <div class=\"col-md-5 mb-4\">\r\n                <h4 class=\"d-flex justify-content-between align-items-center mb-3\">\r\n                    <span class=\"text-muted\">Indicadores do Projeto - Fase 4</span>\r\n                    <span class=\"badge badge-secondary badge-pill\">{{projetoIndicadoresSelecionadosF4.length}}</span>\r\n                </h4>\r\n                <ul class=\"list-group mb-3\">\r\n                    <li class=\"list-group-item d-flex justify-content-between lh-condensed\" *ngFor=\"let ind4 of projetoIndicadoresSelecionadosF4\">\r\n                        <div>\r\n                            <h6 class=\"mt-2\"><b>{{ind4.name}}</b></h6>\r\n                            <div class=\"row mt-4\">\r\n                              <div class=\"col-5\">\r\n                                <div class=\"form-group\">\r\n                                  <label class=\"small\">Valor</label>\r\n                                  <input type=\"text\" class=\"form-control form-control-sm\" [(ngModel)]=\"ind4.value\">\r\n                                </div>\r\n                              </div>\r\n                            </div>\r\n                            <div class=\"row mt-2\">\r\n                              <div class=\"col-12\">\r\n                                  <label class=\"small\">Valores limítrofes (para controle do indicador)</label>\r\n                              </div>\r\n                            </div>\r\n                            <div class=\"row\">\r\n                                <div class=\"col-5\">\r\n                                    <input class=\"form-control form-control-sm\" placeholder=\"Mínimo\" type=\"text\" [(ngModel)]=\"ind4.min\">\r\n                                </div>\r\n                                <div class=\"col-5\">\r\n                                    <input class=\"form-control form-control-sm\" placeholder=\"Máximo\" type=\"text\" [(ngModel)]=\"ind4.max\">\r\n                                </div>\r\n                                <div class=\"col-2\"></div>\r\n                            </div>\r\n                        </div>\r\n                        <div>\r\n                          <button type=\"button\" class=\"btn btn-secondary btn-sm\" (click)=\"removeItem(ind4, 4)\">&times;</button>\r\n                        </div>\r\n                    </li>\r\n                </ul>\r\n            </div>\r\n            <div class=\"col-md-1\"></div>\r\n            <div class=\"col-md-5 mb-4\">\r\n                <h4 class=\"d-flex justify-content-between align-items-center mb-3\">\r\n                    <span class=\"text-muted\">Indicadores disponíveis</span>\r\n                    <span class=\"badge badge-secondary badge-pill\">{{indicadoresRef4.length}}</span>\r\n                </h4>\r\n                <ul class=\"list-group mb-3\">\r\n                    <li class=\"list-group-item d-flex justify-content-between lh-condensed\" *ngFor=\"let ind of indicadoresRef4\">\r\n                        <div>\r\n                            <h6 class=\"my-0\">{{ind.name}}</h6>\r\n                        </div>\r\n                        <button type=\"button\" class=\"btn btn-secondary btn-sm\" (click)=\"insertItem(ind, 4)\">Inserir</button>\r\n                    </li>\r\n                </ul>\r\n            </div>\r\n            <div class=\"col-md-1\"></div>\r\n        </div>\r\n\r\n      </div>\r\n    </div>\r\n  </div>\r\n</div>\r\n\r\n\r\n    \r\n    <div class=\"row\">\r\n      <!-- -->\r\n    </div>\r\n    <hr>\r\n    <div class=\"row\">\r\n        <div class=\"col\">\r\n            <div class=\"form-group\">\r\n                <button type=\"button\" class=\"btn btn-primary\" (click)=\"onSave()\">Salvar</button>\r\n                &nbsp;\r\n                <button type=\"button\" class=\"btn btn-secondary\" (click)=\"goBack()\">Voltar</button>\r\n            </div>\r\n        </div>\r\n    </div>\r\n</div>"
+module.exports = "<div class=\"container\">\r\n  <nav aria-label=\"breadcrumb\">\r\n    <ol class=\"breadcrumb\">\r\n      <li class=\"breadcrumb-item\"><a routerLink=\"/home\">Home</a></li>\r\n      <li class=\"breadcrumb-item\"><a routerLink=\"/projeto\">Projetos</a></li>\r\n      <li class=\"breadcrumb-item active\" aria-current=\"page\">Indicadores do Projeto</li>\r\n    </ol>\r\n  </nav>\r\n  <h2>Indicadores do Projeto</h2>\r\n  <hr>\r\n\r\n  <h4>Nome do Projeto: {{projetoRef.name}}</h4>\r\n\r\n  <div class=\"accordion mt-3\" id=\"accordionExample\">\r\n  <div class=\"card\">\r\n    <div class=\"card-header\" id=\"headingOne\">\r\n      <h5 class=\"mb-0\">\r\n        <button class=\"btn btn-link\" type=\"button\" data-toggle=\"collapse\" data-target=\"#collapseOne\" aria-expanded=\"true\" aria-controls=\"collapseOne\">\r\n          Fase 1 - Iniciação ou Conceito\r\n          <span class=\"badge badge-secondary badge-pill ml-2\">{{projetoIndicadoresSelecionadosF1.length}}</span>\r\n        </button>\r\n      </h5>\r\n    </div>\r\n    <div id=\"collapseOne\" class=\"collapse\" aria-labelledby=\"headingOne\" data-parent=\"#accordionExample\"> <!-- class=show para iniciar aberto -->\r\n      <div class=\"card-body\">\r\n        \r\n          <div class=\"row\">\r\n            <div class=\"col-md-5 mb-4\">\r\n                <h4 class=\"d-flex justify-content-between align-items-center mb-3\">\r\n                    <span class=\"text-muted\">Indicadores do Projeto - Fase 1</span>\r\n                    <span class=\"badge badge-secondary badge-pill\">{{projetoIndicadoresSelecionadosF1.length}}</span>\r\n                </h4>\r\n                <ul class=\"list-group mb-3\">\r\n                    <li class=\"list-group-item d-flex justify-content-between lh-condensed\" *ngFor=\"let ind1 of projetoIndicadoresSelecionadosF1\">\r\n                        <div>\r\n                            <h6 class=\"mt-2\"><b>{{ind1.name}}</b></h6>\r\n                            <div class=\"row mt-3\">\r\n                              <div class=\"col-5\">\r\n                                <div class=\"form-group\">\r\n                                  <label class=\"small\">Valor</label>\r\n                                  <input type=\"text\" class=\"form-control form-control-sm\" [(ngModel)]=\"ind1.value\">\r\n                                </div>\r\n                              </div>\r\n                            </div>\r\n                            <div class=\"row mt-1\">\r\n                              <div class=\"col-12\">\r\n                                  <label class=\"small\">Valores limítrofes (para controle do indicador)</label>\r\n                              </div>\r\n                            </div>\r\n                            <div class=\"row\">\r\n                                <div class=\"col-5\">\r\n                                    <!--<input class=\"form-control form-control-sm\" placeholder=\"Mínimo\" type=\"text\" [(ngModel)]=\"ind1.min\">-->\r\n                                    Mínimo: {{ind1.min}}\r\n                                </div>\r\n                                <div class=\"col-5\">\r\n                                    <!--<input class=\"form-control form-control-sm\" placeholder=\"Máximo\" type=\"text\" [(ngModel)]=\"ind1.max\">-->\r\n                                    Máximo: {{ind1.max}}\r\n                                </div>\r\n                                <div class=\"col-2\"></div>\r\n                            </div>\r\n                        </div>\r\n                        <div>\r\n                          <button type=\"button\" class=\"btn btn-secondary btn-sm\" (click)=\"removeItem(ind1, 1)\">&times;</button>\r\n                        </div>\r\n                    </li>\r\n                </ul>\r\n            </div>\r\n            <div class=\"col-md-1\"></div>\r\n            <div class=\"col-md-5 mb-4\">\r\n                <h4 class=\"d-flex justify-content-between align-items-center mb-3\">\r\n                    <span class=\"text-muted\">Indicadores disponíveis</span>\r\n                    <span class=\"badge badge-secondary badge-pill\">{{indicadoresRef1.length}}</span>\r\n                </h4>\r\n                <ul class=\"list-group mb-3\">\r\n                    <li class=\"list-group-item d-flex justify-content-between lh-condensed\" *ngFor=\"let ind of indicadoresRef1\">\r\n                        <div>\r\n                            <h6 class=\"my-0\">{{ind.name}}</h6>\r\n                        </div>\r\n                        <button type=\"button\" class=\"btn btn-secondary btn-sm\" (click)=\"insertItem(ind, 1)\">Inserir</button>\r\n                    </li>\r\n                </ul>\r\n            </div>\r\n            <div class=\"col-md-1\"></div>\r\n        </div>\r\n\r\n      </div>\r\n    </div>\r\n  </div>\r\n  <div class=\"card\">\r\n    <div class=\"card-header\" id=\"headingTwo\">\r\n      <h5 class=\"mb-0\">\r\n        <button class=\"btn btn-link collapsed\" type=\"button\" data-toggle=\"collapse\" data-target=\"#collapseTwo\" aria-expanded=\"false\" aria-controls=\"collapseTwo\">\r\n          Fase 2 - Elaboração\r\n          <span class=\"badge badge-secondary badge-pill ml-2\">{{projetoIndicadoresSelecionadosF2.length}}</span>\r\n        </button>\r\n      </h5>\r\n    </div>\r\n    <div id=\"collapseTwo\" class=\"collapse\" aria-labelledby=\"headingTwo\" data-parent=\"#accordionExample\">\r\n      <div class=\"card-body\">\r\n        \r\n          <div class=\"row\">\r\n            <div class=\"col-md-5 mb-4\">\r\n                <h4 class=\"d-flex justify-content-between align-items-center mb-3\">\r\n                    <span class=\"text-muted\">Indicadores do Projeto - Fase 2</span>\r\n                    <span class=\"badge badge-secondary badge-pill\">{{projetoIndicadoresSelecionadosF2.length}}</span>\r\n                </h4>\r\n                <ul class=\"list-group mb-3\">\r\n                    <li class=\"list-group-item d-flex justify-content-between lh-condensed\" *ngFor=\"let ind2 of projetoIndicadoresSelecionadosF2\">\r\n                        <div>\r\n                            <h6 class=\"mt-2\"><b>{{ind2.name}}</b></h6>\r\n                            <div class=\"row mt-3\">\r\n                              <div class=\"col-5\">\r\n                                <div class=\"form-group\">\r\n                                  <label class=\"small\">Valor</label>\r\n                                  <input type=\"text\" class=\"form-control form-control-sm\" [(ngModel)]=\"ind2.value\">\r\n                                </div>\r\n                              </div>\r\n                            </div>\r\n                            <div class=\"row mt-1\">\r\n                              <div class=\"col-12\">\r\n                                  <label class=\"small\">Valores limítrofes (para controle do indicador)</label>\r\n                              </div>\r\n                            </div>\r\n                            <div class=\"row\">\r\n                                <div class=\"col-5\">\r\n                                    <!--<input class=\"form-control form-control-sm\" placeholder=\"Mínimo\" type=\"text\" [(ngModel)]=\"ind2.min\">-->\r\n                                    Mínimo: {{ind2.min}}\r\n                                </div>\r\n                                <div class=\"col-5\">\r\n                                    <!--<input class=\"form-control form-control-sm\" placeholder=\"Máximo\" type=\"text\" [(ngModel)]=\"ind2.max\">-->\r\n                                    Máximo: {{ind2.max}}\r\n                                </div>\r\n                                <div class=\"col-2\"></div>\r\n                            </div>\r\n                        </div>\r\n                        <div>\r\n                          <button type=\"button\" class=\"btn btn-secondary btn-sm\" (click)=\"removeItem(ind2, 2)\">&times;</button>\r\n                        </div>\r\n                    </li>\r\n                </ul>\r\n            </div>\r\n            <div class=\"col-md-1\"></div>\r\n            <div class=\"col-md-5 mb-4\">\r\n                <h4 class=\"d-flex justify-content-between align-items-center mb-3\">\r\n                    <span class=\"text-muted\">Indicadores disponíveis</span>\r\n                    <span class=\"badge badge-secondary badge-pill\">{{indicadoresRef2.length}}</span>\r\n                </h4>\r\n                <ul class=\"list-group mb-3\">\r\n                    <li class=\"list-group-item d-flex justify-content-between lh-condensed\" *ngFor=\"let ind of indicadoresRef2\">\r\n                        <div>\r\n                            <h6 class=\"my-0\">{{ind.name}}</h6>\r\n                        </div>\r\n                        <button type=\"button\" class=\"btn btn-secondary btn-sm\" (click)=\"insertItem(ind, 2)\">Inserir</button>\r\n                    </li>\r\n                </ul>\r\n            </div>\r\n            <div class=\"col-md-1\"></div>\r\n        </div>\r\n\r\n      </div>\r\n    </div>\r\n  </div>\r\n  <div class=\"card\">\r\n    <div class=\"card-header\" id=\"headingThree\">\r\n      <h5 class=\"mb-0\">\r\n        <button class=\"btn btn-link collapsed\" type=\"button\" data-toggle=\"collapse\" data-target=\"#collapseThree\" aria-expanded=\"false\" aria-controls=\"collapseThree\">\r\n          Fase 3 - Construção\r\n          <span class=\"badge badge-secondary badge-pill ml-2\">{{projetoIndicadoresSelecionadosF3.length}}</span>\r\n        </button>\r\n      </h5>\r\n    </div>\r\n    <div id=\"collapseThree\" class=\"collapse\" aria-labelledby=\"headingThree\" data-parent=\"#accordionExample\">\r\n      <div class=\"card-body\">\r\n        \r\n          <div class=\"row\">\r\n            <div class=\"col-md-5 mb-4\">\r\n                <h4 class=\"d-flex justify-content-between align-items-center mb-3\">\r\n                    <span class=\"text-muted\">Indicadores do Projeto - Fase 3</span>\r\n                    <span class=\"badge badge-secondary badge-pill\">{{projetoIndicadoresSelecionadosF3.length}}</span>\r\n                </h4>\r\n                <ul class=\"list-group mb-3\">\r\n                    <li class=\"list-group-item d-flex justify-content-between lh-condensed\" *ngFor=\"let ind3 of projetoIndicadoresSelecionadosF3\">\r\n                        <div>\r\n                            <h6 class=\"mt-2\"><b>{{ind3.name}}</b></h6>\r\n                            <div class=\"row mt-3\">\r\n                              <div class=\"col-5\">\r\n                                <div class=\"form-group\">\r\n                                  <label class=\"small\">Valor</label>\r\n                                  <input type=\"text\" class=\"form-control form-control-sm\" [(ngModel)]=\"ind3.value\">\r\n                                </div>\r\n                              </div>\r\n                            </div>\r\n                            <div class=\"row mt-1\">\r\n                              <div class=\"col-12\">\r\n                                  <label class=\"small\">Valores limítrofes (para controle do indicador)</label>\r\n                              </div>\r\n                            </div>\r\n                            <div class=\"row\">\r\n                                <div class=\"col-5\">\r\n                                    <!--<input class=\"form-control form-control-sm\" placeholder=\"Mínimo\" type=\"text\" [(ngModel)]=\"ind3.min\">-->\r\n                                    Mínimo: {{ind3.min}}\r\n                                </div>\r\n                                <div class=\"col-5\">\r\n                                    <!--<input class=\"form-control form-control-sm\" placeholder=\"Máximo\" type=\"text\" [(ngModel)]=\"ind3.max\">-->\r\n                                    Máximo: {{ind3.max}}\r\n                                </div>\r\n                                <div class=\"col-2\"></div>\r\n                            </div>\r\n                        </div>\r\n                        <div>\r\n                          <button type=\"button\" class=\"btn btn-secondary btn-sm\" (click)=\"removeItem(ind3, 3)\">&times;</button>\r\n                        </div>\r\n                    </li>\r\n                </ul>\r\n            </div>\r\n            <div class=\"col-md-1\"></div>\r\n            <div class=\"col-md-5 mb-4\">\r\n                <h4 class=\"d-flex justify-content-between align-items-center mb-3\">\r\n                    <span class=\"text-muted\">Indicadores disponíveis</span>\r\n                    <span class=\"badge badge-secondary badge-pill\">{{indicadoresRef3.length}}</span>\r\n                </h4>\r\n                <ul class=\"list-group mb-3\">\r\n                    <li class=\"list-group-item d-flex justify-content-between lh-condensed\" *ngFor=\"let ind of indicadoresRef3\">\r\n                        <div>\r\n                            <h6 class=\"my-0\">{{ind.name}}</h6>\r\n                        </div>\r\n                        <button type=\"button\" class=\"btn btn-secondary btn-sm\" (click)=\"insertItem(ind, 3)\">Inserir</button>\r\n                    </li>\r\n                </ul>\r\n            </div>\r\n            <div class=\"col-md-1\"></div>\r\n        </div>\r\n\r\n      </div>\r\n    </div>\r\n  </div>\r\n  <div class=\"card\">\r\n    <div class=\"card-header\" id=\"headingFour\">\r\n      <h5 class=\"mb-0\">\r\n        <button class=\"btn btn-link collapsed\" type=\"button\" data-toggle=\"collapse\" data-target=\"#collapseFour\" aria-expanded=\"false\" aria-controls=\"collapseFour\">\r\n          Fase 4 - Transição\r\n          <span class=\"badge badge-secondary badge-pill ml-2\">{{projetoIndicadoresSelecionadosF4.length}}</span>\r\n        </button>\r\n      </h5>\r\n    </div>\r\n    <div id=\"collapseFour\" class=\"collapse\" aria-labelledby=\"headingFour\" data-parent=\"#accordionExample\">\r\n      <div class=\"card-body\">\r\n        \r\n          <div class=\"row\">\r\n            <div class=\"col-md-5 mb-4\">\r\n                <h4 class=\"d-flex justify-content-between align-items-center mb-3\">\r\n                    <span class=\"text-muted\">Indicadores do Projeto - Fase 4</span>\r\n                    <span class=\"badge badge-secondary badge-pill\">{{projetoIndicadoresSelecionadosF4.length}}</span>\r\n                </h4>\r\n                <ul class=\"list-group mb-3\">\r\n                    <li class=\"list-group-item d-flex justify-content-between lh-condensed\" *ngFor=\"let ind4 of projetoIndicadoresSelecionadosF4\">\r\n                        <div>\r\n                            <h6 class=\"mt-2\"><b>{{ind4.name}}</b></h6>\r\n                            <div class=\"row mt-3\">\r\n                              <div class=\"col-5\">\r\n                                <div class=\"form-group\">\r\n                                  <label class=\"small\">Valor</label>\r\n                                  <input type=\"text\" class=\"form-control form-control-sm\" [(ngModel)]=\"ind4.value\">\r\n                                </div>\r\n                              </div>\r\n                            </div>\r\n                            <div class=\"row\">\r\n                              <div class=\"col-12\">\r\n                                  <label class=\"small\">Valores limítrofes (para controle do indicador)</label>\r\n                              </div>\r\n                            </div>\r\n                            <div class=\"row mt-1\">\r\n                                <div class=\"col-5\">\r\n                                    <!--<input class=\"form-control form-control-sm\" placeholder=\"Mínimo\" type=\"text\" [(ngModel)]=\"ind4.min\">-->\r\n                                    Mínimo: {{ind4.min}}\r\n                                </div>\r\n                                <div class=\"col-5\">\r\n                                    <!--<input class=\"form-control form-control-sm\" placeholder=\"Máximo\" type=\"text\" [(ngModel)]=\"ind4.max\">-->\r\n                                    Máximo: {{ind4.max}}\r\n                                </div>\r\n                                <div class=\"col-2\"></div>\r\n                            </div>\r\n                        </div>\r\n                        <div>\r\n                          <button type=\"button\" class=\"btn btn-secondary btn-sm\" (click)=\"removeItem(ind4, 4)\">&times;</button>\r\n                        </div>\r\n                    </li>\r\n                </ul>\r\n            </div>\r\n            <div class=\"col-md-1\"></div>\r\n            <div class=\"col-md-5 mb-4\">\r\n                <h4 class=\"d-flex justify-content-between align-items-center mb-3\">\r\n                    <span class=\"text-muted\">Indicadores disponíveis</span>\r\n                    <span class=\"badge badge-secondary badge-pill\">{{indicadoresRef4.length}}</span>\r\n                </h4>\r\n                <ul class=\"list-group mb-3\">\r\n                    <li class=\"list-group-item d-flex justify-content-between lh-condensed\" *ngFor=\"let ind of indicadoresRef4\">\r\n                        <div>\r\n                            <h6 class=\"my-0\">{{ind.name}}</h6>\r\n                        </div>\r\n                        <button type=\"button\" class=\"btn btn-secondary btn-sm\" (click)=\"insertItem(ind, 4)\">Inserir</button>\r\n                    </li>\r\n                </ul>\r\n            </div>\r\n            <div class=\"col-md-1\"></div>\r\n        </div>\r\n\r\n      </div>\r\n    </div>\r\n  </div>\r\n</div>\r\n\r\n\r\n    \r\n    <div class=\"row\">\r\n      <!-- -->\r\n    </div>\r\n    <hr>\r\n    <div class=\"row\">\r\n        <div class=\"col\">\r\n            <div class=\"form-group\">\r\n                <button type=\"button\" class=\"btn btn-primary\" (click)=\"onSave()\">Salvar</button>\r\n                &nbsp;\r\n                <button type=\"button\" class=\"btn btn-secondary\" (click)=\"goBack()\">Voltar</button>\r\n            </div>\r\n        </div>\r\n    </div>\r\n</div>"
 
 /***/ }),
 
@@ -2657,8 +2754,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _angular_router__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! @angular/router */ "./node_modules/@angular/router/fesm5/router.js");
 /* harmony import */ var _controllers_message_service_message_service__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ../_controllers/message/service/message.service */ "./src/app/_controllers/message/service/message.service.ts");
 /* harmony import */ var _projeto_services_projeto_service__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ../projeto-services/projeto.service */ "./src/app/projeto-services/projeto.service.ts");
-/* harmony import */ var _indicador_service_indicador_service__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ../indicador-service/indicador.service */ "./src/app/indicador-service/indicador.service.ts");
-/* harmony import */ var _models_projeto_model__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ../_models/projeto.model */ "./src/app/_models/projeto.model.ts");
+/* harmony import */ var _models_projeto_model__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ../_models/projeto.model */ "./src/app/_models/projeto.model.ts");
 var __decorate = (undefined && undefined.__decorate) || function (decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -2673,16 +2769,17 @@ var __metadata = (undefined && undefined.__metadata) || function (k, v) {
 
 
 
-
+//import { IndicadorService } from '../indicador-service/indicador.service';
 
 var ProjetoIndicadorFaseComponent = /** @class */ (function () {
-    function ProjetoIndicadorFaseComponent(projetoService, indicadorService, route, location, message) {
+    function ProjetoIndicadorFaseComponent(projetoService, 
+    //private indicadorService: IndicadorService,
+    route, location, message) {
         this.projetoService = projetoService;
-        this.indicadorService = indicadorService;
         this.route = route;
         this.location = location;
         this.message = message;
-        this.projetoRef = new _models_projeto_model__WEBPACK_IMPORTED_MODULE_6__["Projeto"](); // cria um novo 'new ...()' pq ele precisa ser carregado, mesmo que vazio, na view antes do ajax retornar algo
+        this.projetoRef = new _models_projeto_model__WEBPACK_IMPORTED_MODULE_5__["Projeto"](); // cria um novo 'new ...()' pq ele precisa ser carregado, mesmo que vazio, na view antes do ajax retornar algo
         this.indicadoresRef1 = [];
         this.indicadoresRef2 = [];
         this.indicadoresRef3 = [];
@@ -2694,7 +2791,7 @@ var ProjetoIndicadorFaseComponent = /** @class */ (function () {
     }
     ProjetoIndicadorFaseComponent.prototype.ngOnInit = function () {
         this.getProjetoById();
-        this.getIndicadores();
+        //this.getIndicadores();
     };
     ProjetoIndicadorFaseComponent.prototype.getProjetoById = function () {
         var _this = this;
@@ -2706,22 +2803,28 @@ var ProjetoIndicadorFaseComponent = /** @class */ (function () {
             _this.projetoIndicadoresSelecionadosF2 = prj.phases['phase2'];
             _this.projetoIndicadoresSelecionadosF3 = prj.phases['phase3'];
             _this.projetoIndicadoresSelecionadosF4 = prj.phases['phase4'];
+            // JSON.stringfy() é usado aqui para criar clones de prj.indicators
+            _this.indicadoresRef1 = JSON.parse(JSON.stringify(prj.indicators));
+            _this.indicadoresRef2 = JSON.parse(JSON.stringify(prj.indicators));
+            _this.indicadoresRef3 = JSON.parse(JSON.stringify(prj.indicators));
+            _this.indicadoresRef4 = JSON.parse(JSON.stringify(prj.indicators));
             console.log('get projeto', prj);
-            _this.checkSelecionadosDisponiveis();
+            //this.checkSelecionadosDisponiveis();
         });
     };
-    ProjetoIndicadorFaseComponent.prototype.getIndicadores = function () {
-        var _this = this;
-        this.indicadorService.getIndicadores().subscribe(function (inds) {
-            // usar JSON.parse(JSON.stringify(inds)); para criar 'clones' de inds
-            _this.indicadoresRef1 = JSON.parse(JSON.stringify(inds));
-            _this.indicadoresRef2 = JSON.parse(JSON.stringify(inds));
-            _this.indicadoresRef3 = JSON.parse(JSON.stringify(inds));
-            _this.indicadoresRef4 = JSON.parse(JSON.stringify(inds));
-            console.log('get indicadores', inds);
-            _this.checkSelecionadosDisponiveis();
-        });
-    };
+    /*getIndicadores() {
+      this.indicadorService.getIndicadores().subscribe(
+        (inds) => {
+          // usar JSON.parse(JSON.stringify(inds)); para criar 'clones' de inds
+          this.indicadoresRef1 = JSON.parse(JSON.stringify(inds));
+          this.indicadoresRef2 = JSON.parse(JSON.stringify(inds));
+          this.indicadoresRef3 = JSON.parse(JSON.stringify(inds));
+          this.indicadoresRef4 = JSON.parse(JSON.stringify(inds));
+          console.log('get indicadores', inds);
+          this.checkSelecionadosDisponiveis();
+        }
+      );
+    }*/
     ProjetoIndicadorFaseComponent.prototype.onSave = function () {
         var _this = this;
         this.projetoRef.phases['phase1'] = this.projetoIndicadoresSelecionadosF1;
@@ -2799,52 +2902,6 @@ var ProjetoIndicadorFaseComponent = /** @class */ (function () {
                 break;
         }
     };
-    ProjetoIndicadorFaseComponent.prototype.checkSelecionadosDisponiveis = function () {
-        var _this = this;
-        // é chamada pelos métodos que recebem requisições
-        // é verificado se as duas já foram feitas, então executa a compraração
-        if (this.projetoRef._id !== '' && this.projetoRef._id !== undefined && this.indicadoresRef4.length > 0) {
-            var _loop_1 = function (i) {
-                // retira, com um filtro, do array dos disponíveis aqueles que encontrar
-                this_1.indicadoresRef1 = this_1.indicadoresRef1.filter(function (el) {
-                    return el._id !== _this.projetoIndicadoresSelecionadosF1[i]._id;
-                });
-            };
-            var this_1 = this;
-            // faz um loop na array dos alocados
-            for (var i = 0; i < this.projetoIndicadoresSelecionadosF1.length; i++) {
-                _loop_1(i);
-            }
-            var _loop_2 = function (i) {
-                this_2.indicadoresRef2 = this_2.indicadoresRef2.filter(function (el) {
-                    return el._id !== _this.projetoIndicadoresSelecionadosF2[i]._id;
-                });
-            };
-            var this_2 = this;
-            for (var i = 0; i < this.projetoIndicadoresSelecionadosF2.length; i++) {
-                _loop_2(i);
-            }
-            var _loop_3 = function (i) {
-                this_3.indicadoresRef3 = this_3.indicadoresRef3.filter(function (el) {
-                    return el._id !== _this.projetoIndicadoresSelecionadosF3[i]._id;
-                });
-            };
-            var this_3 = this;
-            for (var i = 0; i < this.projetoIndicadoresSelecionadosF3.length; i++) {
-                _loop_3(i);
-            }
-            var _loop_4 = function (i) {
-                this_4.indicadoresRef4 = this_4.indicadoresRef4.filter(function (el) {
-                    return el._id !== _this.projetoIndicadoresSelecionadosF4[i]._id;
-                });
-            };
-            var this_4 = this;
-            for (var i = 0; i < this.projetoIndicadoresSelecionadosF4.length; i++) {
-                _loop_4(i);
-            }
-            //
-        }
-    };
     ProjetoIndicadorFaseComponent = __decorate([
         Object(_angular_core__WEBPACK_IMPORTED_MODULE_0__["Component"])({
             selector: 'app-projeto-indicador-fase',
@@ -2852,7 +2909,6 @@ var ProjetoIndicadorFaseComponent = /** @class */ (function () {
             styles: [__webpack_require__(/*! ./projeto-indicador-fase.component.css */ "./src/app/projeto-indicador-fase/projeto-indicador-fase.component.css")]
         }),
         __metadata("design:paramtypes", [_projeto_services_projeto_service__WEBPACK_IMPORTED_MODULE_4__["ProjetoService"],
-            _indicador_service_indicador_service__WEBPACK_IMPORTED_MODULE_5__["IndicadorService"],
             _angular_router__WEBPACK_IMPORTED_MODULE_2__["ActivatedRoute"],
             _angular_common__WEBPACK_IMPORTED_MODULE_1__["Location"],
             _controllers_message_service_message_service__WEBPACK_IMPORTED_MODULE_3__["MessageService"]])
@@ -2882,7 +2938,7 @@ module.exports = ""
 /*! no static exports found */
 /***/ (function(module, exports) {
 
-module.exports = "<p>\r\n  projeto-indicador works!\r\n</p>\r\n"
+module.exports = "<div class=\"container\">\r\n  <nav aria-label=\"breadcrumb\">\r\n    <ol class=\"breadcrumb\">\r\n      <li class=\"breadcrumb-item\"><a routerLink=\"/home\">Home</a></li>\r\n      <li class=\"breadcrumb-item\"><a routerLink=\"/projeto\">Projetos</a></li>\r\n      <li class=\"breadcrumb-item active\" aria-current=\"page\">Seleção de Indicadores do Projeto</li>\r\n    </ol>\r\n  </nav>\r\n  <h2>Seleção de Indicadores do Projeto</h2>\r\n  <hr>\r\n\r\n  <h4>Nome do Projeto: {{projetoRef.name}}</h4>\r\n        \r\n  <br>\r\n        <div class=\"row\">\r\n            <div class=\"col-md-5 mb-4\">\r\n                <h4 class=\"d-flex justify-content-between align-items-center mb-3\">\r\n                    <span class=\"text-muted\">Indicadores do Projeto</span>\r\n                    <span class=\"badge badge-secondary badge-pill\">{{projetoIndicadoresSelecionados.length}}</span>\r\n                </h4>\r\n                <ul class=\"list-group mb-3\">\r\n                    <li class=\"list-group-item d-flex justify-content-between lh-condensed\" *ngFor=\"let ind1 of projetoIndicadoresSelecionados\">\r\n                        <div>\r\n                            <h6 class=\"mt-2\"><b>{{ind1.name}}</b></h6>\r\n                          <!--\r\n                            <div class=\"row mt-4\">\r\n                              <div class=\"col-5\">\r\n                                <div class=\"form-group\">\r\n                                  <label class=\"small\">Valor</label>\r\n                                  <input type=\"text\" class=\"form-control form-control-sm\" [(ngModel)]=\"ind1.value\">\r\n                                </div>\r\n                              </div>\r\n                            </div>\r\n                          -->\r\n                            <div class=\"row mt-2\">\r\n                              <div class=\"col-12\">\r\n                                  <label class=\"small\">Valores limítrofes (para controle do indicador)</label>\r\n                              </div>\r\n                            </div>\r\n                            <div class=\"row\">\r\n                                <div class=\"col-5\">\r\n                                    <input class=\"form-control form-control-sm\" placeholder=\"Mínimo\" type=\"text\" [(ngModel)]=\"ind1.min\">\r\n                                </div>\r\n                                <div class=\"col-5\">\r\n                                    <input class=\"form-control form-control-sm\" placeholder=\"Máximo\" type=\"text\" [(ngModel)]=\"ind1.max\">\r\n                                </div>\r\n                                <div class=\"col-2\"></div>\r\n                            </div>\r\n                        </div>\r\n                        <div>\r\n                          <button type=\"button\" class=\"btn btn-secondary btn-sm\" (click)=\"removeItem(ind1)\">&times;</button>\r\n                        </div>\r\n                    </li>\r\n                </ul>\r\n            </div>\r\n            <div class=\"col-md-1\"></div>\r\n            <div class=\"col-md-5 mb-4\">\r\n                <h4 class=\"d-flex justify-content-between align-items-center mb-3\">\r\n                    <span class=\"text-muted\">Indicadores disponíveis</span>\r\n                    <span class=\"badge badge-secondary badge-pill\">{{indicadoresRef.length}}</span>\r\n                </h4>\r\n                <ul class=\"list-group mb-3\">\r\n                    <li class=\"list-group-item d-flex justify-content-between lh-condensed\" *ngFor=\"let ind of indicadoresRef\">\r\n                        <div>\r\n                            <h6 class=\"my-0\">{{ind.name}}</h6>\r\n                        </div>\r\n                        <button type=\"button\" class=\"btn btn-secondary btn-sm\" (click)=\"insertItem(ind)\">Inserir</button>\r\n                    </li>\r\n                </ul>\r\n            </div>\r\n            <div class=\"col-md-1\"></div>\r\n        </div>\r\n\r\n    <div class=\"row\">\r\n      <!-- -->\r\n    </div>\r\n    <hr>\r\n    <div class=\"row\">\r\n        <div class=\"col\">\r\n            <div class=\"form-group\">\r\n                <button type=\"button\" class=\"btn btn-primary\" (click)=\"onSave()\">Salvar</button>\r\n                &nbsp;\r\n                <button type=\"button\" class=\"btn btn-secondary\" (click)=\"goBack()\">Voltar</button>\r\n            </div>\r\n        </div>\r\n    </div>\r\n</div>"
 
 /***/ }),
 
@@ -2897,6 +2953,12 @@ module.exports = "<p>\r\n  projeto-indicador works!\r\n</p>\r\n"
 __webpack_require__.r(__webpack_exports__);
 /* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "ProjetoIndicadorComponent", function() { return ProjetoIndicadorComponent; });
 /* harmony import */ var _angular_core__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! @angular/core */ "./node_modules/@angular/core/fesm5/core.js");
+/* harmony import */ var _angular_common__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! @angular/common */ "./node_modules/@angular/common/fesm5/common.js");
+/* harmony import */ var _angular_router__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! @angular/router */ "./node_modules/@angular/router/fesm5/router.js");
+/* harmony import */ var _controllers_message_service_message_service__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ../_controllers/message/service/message.service */ "./src/app/_controllers/message/service/message.service.ts");
+/* harmony import */ var _projeto_services_projeto_service__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ../projeto-services/projeto.service */ "./src/app/projeto-services/projeto.service.ts");
+/* harmony import */ var _indicador_service_indicador_service__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ../indicador-service/indicador.service */ "./src/app/indicador-service/indicador.service.ts");
+/* harmony import */ var _models_projeto_model__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ../_models/projeto.model */ "./src/app/_models/projeto.model.ts");
 var __decorate = (undefined && undefined.__decorate) || function (decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -2907,10 +2969,92 @@ var __metadata = (undefined && undefined.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 
+
+
+
+
+
+
 var ProjetoIndicadorComponent = /** @class */ (function () {
-    function ProjetoIndicadorComponent() {
+    function ProjetoIndicadorComponent(projetoService, indicadorService, route, location, message) {
+        this.projetoService = projetoService;
+        this.indicadorService = indicadorService;
+        this.route = route;
+        this.location = location;
+        this.message = message;
+        this.projetoRef = new _models_projeto_model__WEBPACK_IMPORTED_MODULE_6__["Projeto"](); // cria um novo 'new ...()' pq ele precisa ser carregado, mesmo que vazio, na view antes do ajax retornar algo
+        this.indicadoresRef = [];
+        this.projetoIndicadoresSelecionados = new Array();
     }
     ProjetoIndicadorComponent.prototype.ngOnInit = function () {
+        this.getProjetoById();
+        this.getIndicadores();
+    };
+    ProjetoIndicadorComponent.prototype.getProjetoById = function () {
+        var _this = this;
+        // pega ID da url
+        var id = this.route.snapshot.paramMap.get('id');
+        this.projetoService.getProjetoById(id).subscribe(function (prj) {
+            _this.projetoRef = prj;
+            _this.projetoIndicadoresSelecionados = prj.indicators;
+            console.log('get projeto', prj);
+            _this.checkSelecionadosDisponiveis();
+        });
+    };
+    ProjetoIndicadorComponent.prototype.getIndicadores = function () {
+        var _this = this;
+        this.indicadorService.getIndicadores().subscribe(function (inds) {
+            // usar JSON.parse(JSON.stringify(inds)); para criar 'clones' de inds
+            _this.indicadoresRef = JSON.parse(JSON.stringify(inds));
+            console.log('get indicadores', inds);
+            _this.checkSelecionadosDisponiveis();
+        });
+    };
+    ProjetoIndicadorComponent.prototype.onSave = function () {
+        var _this = this;
+        this.projetoRef.indicators = this.projetoIndicadoresSelecionados;
+        console.log('o que vai ser salvo', this.projetoRef);
+        this.projetoService.putProjeto(this.projetoRef, 'indicador').subscribe(function (prj) {
+            console.log('projeto editado', prj);
+            if (_this.projetoRef.indicators.length == 0) {
+                _this.message.warning('Nenhum projeto deveria ficar sem indicadores', false);
+            }
+        });
+        /**/
+    };
+    ProjetoIndicadorComponent.prototype.goBack = function () {
+        this.location.back();
+    };
+    ProjetoIndicadorComponent.prototype.removeItem = function (indicador) {
+        this.projetoIndicadoresSelecionados = this.projetoIndicadoresSelecionados.filter(function (el) {
+            return el._id !== indicador._id;
+        });
+        this.indicadoresRef.push(indicador);
+    };
+    ProjetoIndicadorComponent.prototype.insertItem = function (indicador) {
+        this.projetoIndicadoresSelecionados.push(indicador);
+        this.indicadoresRef = this.indicadoresRef.filter(function (el) {
+            return el._id !== indicador._id;
+        });
+    };
+    ProjetoIndicadorComponent.prototype.checkSelecionadosDisponiveis = function () {
+        var _this = this;
+        // é chamada pelos métodos que recebem requisições
+        // é verificado se as duas já foram feitas, então executa a compraração
+        if (this.projetoRef._id !== '' && this.projetoRef._id !== undefined && this.indicadoresRef.length > 0) {
+            var _loop_1 = function (i) {
+                // retira, com um filtro, do array dos disponíveis aqueles que encontrar
+                this_1.indicadoresRef = this_1.indicadoresRef.filter(function (el) {
+                    return el._id !== _this.projetoIndicadoresSelecionados[i]._id;
+                });
+            };
+            var this_1 = this;
+            // faz um loop na array dos alocados
+            for (var i = 0; i < this.projetoIndicadoresSelecionados.length; i++) {
+                _loop_1(i);
+            }
+            //
+        }
     };
     ProjetoIndicadorComponent = __decorate([
         Object(_angular_core__WEBPACK_IMPORTED_MODULE_0__["Component"])({
@@ -2918,7 +3062,11 @@ var ProjetoIndicadorComponent = /** @class */ (function () {
             template: __webpack_require__(/*! ./projeto-indicador.component.html */ "./src/app/projeto-indicador/projeto-indicador.component.html"),
             styles: [__webpack_require__(/*! ./projeto-indicador.component.css */ "./src/app/projeto-indicador/projeto-indicador.component.css")]
         }),
-        __metadata("design:paramtypes", [])
+        __metadata("design:paramtypes", [_projeto_services_projeto_service__WEBPACK_IMPORTED_MODULE_4__["ProjetoService"],
+            _indicador_service_indicador_service__WEBPACK_IMPORTED_MODULE_5__["IndicadorService"],
+            _angular_router__WEBPACK_IMPORTED_MODULE_2__["ActivatedRoute"],
+            _angular_common__WEBPACK_IMPORTED_MODULE_1__["Location"],
+            _controllers_message_service_message_service__WEBPACK_IMPORTED_MODULE_3__["MessageService"]])
     ], ProjetoIndicadorComponent);
     return ProjetoIndicadorComponent;
 }());
@@ -2945,7 +3093,7 @@ module.exports = ""
 /*! no static exports found */
 /***/ (function(module, exports) {
 
-module.exports = "<div class=\"container\">\r\n  <nav aria-label=\"breadcrumb\">\r\n    <ol class=\"breadcrumb\">\r\n      <li class=\"breadcrumb-item\"><a routerLink=\"/home\">Home</a></li>\r\n      <li class=\"breadcrumb-item active\" aria-current=\"page\">Projetos</li>\r\n    </ol>\r\n  </nav>\r\n  <!--\r\n  <h1>Lista de Projetos</h1>\r\n  <hr>\r\n  <h2>Filtros</h2>\r\n  <div class=\"row\">\r\n    <div class=\"col-4\">\r\n\r\n      <div class=\"row\">\r\n        <div class=\"col\">\r\n          <div class=\"form-group\">\r\n            <label>Nome</label>\r\n            <input type=\"text\" class=\"form-control\">\r\n          </div>\r\n        </div>\r\n      </div>\r\n      <div class=\"row\">\r\n        <div class=\"col\">\r\n          <div class=\"form-group\">\r\n            <button type=\"button\" class=\"btn btn-primary\">Filtrar</button>\r\n            <button type=\"button\" class=\"btn btn-secondary\">Limpar</button>\r\n          </div>\r\n        </div>\r\n      </div>\r\n\r\n    </div>\r\n    <div class=\"col-8\">\r\n\r\n    </div>\r\n  </div>\r\n-->\r\n  <hr>\r\n  <h2>\r\n    Lista de Projetos\r\n    <div class=\"float-right\"><button type=\"button\" class=\"btn btn-primary\" (click)=\"onNewProject()\">+ novo projeto</button></div>\r\n  </h2>\r\n  <div>\r\n    <table class=\"table\">\r\n      <thead>\r\n        <tr>\r\n          <th>Projeto</th>\r\n          <th>Equipe</th>\r\n          <th>Indicadores</th>\r\n          <th>Situação</th>\r\n          <th class=\"w20p\">Ações</th>\r\n        </tr>\r\n      </thead>\r\n      <tbody>\r\n        <tr *ngFor=\"let projeto of projetoList\">\r\n          <td>{{projeto.name}}</td>\r\n          <td>\r\n             {{ projeto.team.length > 0 ? ( projeto.team.length > 1 ? projeto.team.length+' membros' : '1 membro' ) : 'Sem equipe' }}\r\n             &nbsp;\r\n             <button type=\"button\" class=\"btn btn-default btn-sm\" (click)=\"onSelectTeam(projeto._id)\" *ngIf=\"auth.permissionList.indexOf('/projeto-equipe') >= 0\">\r\n              gerir equipe\r\n            </button>           \r\n          </td>\r\n          <td>\r\n            <button type=\"button\" class=\"btn btn-default btn-sm\" (click)=\"onSelectIndicators(projeto._id)\" *ngIf=\"auth.permissionList.indexOf('/projeto-indicador') >= 0\">\r\n              relacionar indicadores do projeto\r\n            </button>\r\n            <button type=\"button\" class=\"btn btn-default btn-sm\" (click)=\"onSelectIndicators(projeto._id)\" *ngIf=\"auth.permissionList.indexOf('/projeto-indicador-fase') >= 0\">\r\n              gerir indicadores por fases\r\n            </button>\r\n          </td>\r\n          <td>\r\n            <button type=\"button\" class=\"btn btn-default btn-sm\" (click)=\"onSelectStatus(projeto._id)\" *ngIf=\"auth.permissionList.indexOf('/projeto-status') >= 0\">\r\n              gerir status\r\n            </button>\r\n          </td>\r\n          <td>\r\n            <button type=\"button\" class=\"btn btn-default\" (click)=\"onSelectEditProjeto(projeto._id)\">\r\n              editar\r\n            </button>\r\n            &nbsp;\r\n            <button type=\"button\" class=\"btn btn-danger\" data-toggle=\"modal\" data-target=\"#exampleModal\" (click)=\"onSelectDeleteProjeto(projeto._id)\">\r\n              excluir\r\n            </button>\r\n          </td>\r\n        </tr>\r\n      </tbody>\r\n    </table>\r\n  </div>\r\n</div>\r\n\r\n<!-- Modal -->\r\n<div class=\"modal fade\" id=\"exampleModal\" tabindex=\"-1\" role=\"dialog\" aria-labelledby=\"exampleModalLabel\" aria-hidden=\"true\">\r\n  <div class=\"modal-dialog\" role=\"document\">\r\n    <div class=\"modal-content\">\r\n    <div class=\"modal-header\">\r\n        <h5 class=\"modal-title\" id=\"exampleModalLabel\">Modal title</h5>\r\n        <button type=\"button\" class=\"close\" data-dismiss=\"modal\" aria-label=\"Close\" (click)=\"onDeselectDeleteOkProjeto()\">\r\n        <span aria-hidden=\"true\">&times;</span>\r\n        </button>\r\n    </div>\r\n    <div class=\"modal-body\">\r\n        Deseja realmente excluir este Projeto?\r\n    </div>\r\n    <div class=\"modal-footer\">\r\n        <button type=\"button\" class=\"btn btn-secondary\" data-dismiss=\"modal\" (click)=\"onDeselectDeleteOkProjeto()\">Cancelar</button>\r\n        &nbsp;\r\n        <button type=\"button\" class=\"btn btn-danger\" data-dismiss=\"modal\" (click)=\"onSelectDeleteOkProjeto()\">Excluir</button>\r\n    </div>\r\n    </div>\r\n  </div>\r\n</div>\r\n"
+module.exports = "<div class=\"container\">\r\n  <nav aria-label=\"breadcrumb\">\r\n    <ol class=\"breadcrumb\">\r\n      <li class=\"breadcrumb-item\"><a routerLink=\"/home\">Home</a></li>\r\n      <li class=\"breadcrumb-item active\" aria-current=\"page\">Projetos</li>\r\n    </ol>\r\n  </nav>\r\n  <!--\r\n  <h1>Lista de Projetos</h1>\r\n  <hr>\r\n  <h2>Filtros</h2>\r\n  <div class=\"row\">\r\n    <div class=\"col-4\">\r\n\r\n      <div class=\"row\">\r\n        <div class=\"col\">\r\n          <div class=\"form-group\">\r\n            <label>Nome</label>\r\n            <input type=\"text\" class=\"form-control\">\r\n          </div>\r\n        </div>\r\n      </div>\r\n      <div class=\"row\">\r\n        <div class=\"col\">\r\n          <div class=\"form-group\">\r\n            <button type=\"button\" class=\"btn btn-primary\">Filtrar</button>\r\n            <button type=\"button\" class=\"btn btn-secondary\">Limpar</button>\r\n          </div>\r\n        </div>\r\n      </div>\r\n\r\n    </div>\r\n    <div class=\"col-8\">\r\n\r\n    </div>\r\n  </div>\r\n-->\r\n  <hr>\r\n  <h2>\r\n    Lista de Projetos\r\n    <div class=\"float-right\"><button type=\"button\" class=\"btn btn-primary\" (click)=\"onNewProject()\">+ novo projeto</button></div>\r\n  </h2>\r\n  <div>\r\n    <table class=\"table\">\r\n      <thead>\r\n        <tr>\r\n          <th>Projeto</th>\r\n          <th>Equipe</th>\r\n          <th>Indicadores</th>\r\n          <th>Situação</th>\r\n          <th class=\"w20p\">Ações</th>\r\n        </tr>\r\n      </thead>\r\n      <tbody>\r\n        <tr *ngFor=\"let projeto of projetoList\">\r\n          <td>{{projeto.name}}</td>\r\n          <td>\r\n             {{ projeto.team.length > 0 ? ( projeto.team.length > 1 ? projeto.team.length+' membros' : '1 membro' ) : 'Sem equipe' }}\r\n             &nbsp;\r\n             <button type=\"button\" class=\"btn btn-default btn-sm\" (click)=\"onSelectTeam(projeto._id)\" *ngIf=\"auth.permissionList.indexOf('/projeto-equipe') >= 0\">\r\n              gerir equipe\r\n            </button>           \r\n          </td>\r\n          <td>\r\n            <button type=\"button\" class=\"btn btn-default btn-sm\" (click)=\"onSelectIndicators(projeto._id)\" *ngIf=\"auth.permissionList.indexOf('/projeto-indicador') >= 0\">\r\n              relacionar indicadores ao projeto\r\n            </button>\r\n            <button type=\"button\" class=\"btn btn-default btn-sm\" (click)=\"onSelectIndicatorsPhases(projeto._id)\" *ngIf=\"auth.permissionList.indexOf('/projeto-indicador-fase') >= 0\">\r\n              gerir indicadores por fases\r\n            </button>\r\n          </td>\r\n          <td>\r\n            <button type=\"button\" class=\"btn btn-default btn-sm\" (click)=\"onSelectStatus(projeto._id)\" *ngIf=\"auth.permissionList.indexOf('/projeto-status') >= 0\">\r\n              gerir status\r\n            </button>\r\n          </td>\r\n          <td>\r\n            <button type=\"button\" class=\"btn btn-default btn-sm\" (click)=\"onSelectEditProjeto(projeto._id)\">\r\n              editar\r\n            </button>\r\n            &nbsp;\r\n            <button type=\"button\" class=\"btn btn-danger btn-sm\" data-toggle=\"modal\" data-target=\"#exampleModal\" (click)=\"onSelectDeleteProjeto(projeto._id)\">\r\n              excluir\r\n            </button>\r\n          </td>\r\n        </tr>\r\n      </tbody>\r\n    </table>\r\n  </div>\r\n</div>\r\n\r\n<!-- Modal -->\r\n<div class=\"modal fade\" id=\"exampleModal\" tabindex=\"-1\" role=\"dialog\" aria-labelledby=\"exampleModalLabel\" aria-hidden=\"true\">\r\n  <div class=\"modal-dialog\" role=\"document\">\r\n    <div class=\"modal-content\">\r\n  <!--\r\n    <div class=\"modal-header\">\r\n        <h5 class=\"modal-title\" id=\"exampleModalLabel\">Modal title</h5>\r\n        <button type=\"button\" class=\"close\" data-dismiss=\"modal\" aria-label=\"Close\" (click)=\"onDeselectDeleteOkProjeto()\">\r\n        <span aria-hidden=\"true\">&times;</span>\r\n        </button>\r\n    </div>\r\n  -->\r\n    <div class=\"modal-body\">\r\n        Deseja realmente excluir este Projeto?\r\n    </div>\r\n    <div class=\"modal-footer\">\r\n        <button type=\"button\" class=\"btn btn-secondary btn-sm\" data-dismiss=\"modal\" (click)=\"onDeselectDeleteOkProjeto()\">Cancelar</button>\r\n        &nbsp;\r\n        <button type=\"button\" class=\"btn btn-danger btn-sm\" data-dismiss=\"modal\" (click)=\"onSelectDeleteOkProjeto()\">Excluir</button>\r\n    </div>\r\n    </div>\r\n  </div>\r\n</div>\r\n"
 
 /***/ }),
 
@@ -3007,6 +3155,10 @@ var ProjetoListComponent = /** @class */ (function () {
         this.router.navigate(['/projeto/status/' + id]);
     };
     ProjetoListComponent.prototype.onSelectIndicators = function (id) {
+        //console.log('projeto-list.component.js --- selecionar indicadores para projeto id', id);
+        this.router.navigate(['/projeto/indicador/' + id]);
+    };
+    ProjetoListComponent.prototype.onSelectIndicatorsPhases = function (id) {
         //console.log('projeto-list.component.js --- selecionar indicadores para projeto id', id);
         this.router.navigate(['/projeto/indicador-fase/' + id]);
     };
@@ -3093,10 +3245,15 @@ var ProjetoService = /** @class */ (function () {
         this.message = message;
         this.projetoURL = 'api/projeto';
         this.projetoEquipeURL = 'api/projeto-equipe';
+        this.projetoIndicadorURL = 'api/projeto-indicador';
         this.projetoIndicadorFaseURL = 'api/projeto-indicador-fase';
+        this.projetoManagerURL = 'api/projeto/manager';
     }
     ProjetoService.prototype.getProjetos = function () {
         return this.http.get(this.projetoURL).pipe(Object(rxjs_operators__WEBPACK_IMPORTED_MODULE_3__["tap"])(function () { }), Object(rxjs_operators__WEBPACK_IMPORTED_MODULE_3__["catchError"])(this.handleError('getProjetos', [])));
+    };
+    ProjetoService.prototype.getGerentes = function () {
+        return this.http.get(this.projetoManagerURL).pipe(Object(rxjs_operators__WEBPACK_IMPORTED_MODULE_3__["tap"])(function () { }), Object(rxjs_operators__WEBPACK_IMPORTED_MODULE_3__["catchError"])(this.handleError('getGerentes', [])));
     };
     ProjetoService.prototype.getProjetoById = function (id) {
         return this.http.get(this.projetoURL + '/' + id).pipe(Object(rxjs_operators__WEBPACK_IMPORTED_MODULE_3__["tap"])(), Object(rxjs_operators__WEBPACK_IMPORTED_MODULE_3__["catchError"])(this.handleError('getProjeto')));
@@ -3117,6 +3274,9 @@ var ProjetoService = /** @class */ (function () {
                 break;
             case 'equipe':
                 putProjetoUrl = this.projetoEquipeURL;
+                break;
+            case 'indicador':
+                putProjetoUrl = this.projetoIndicadorURL;
                 break;
             case 'indicador-fase':
                 putProjetoUrl = this.projetoIndicadorFaseURL;
@@ -3141,10 +3301,13 @@ var ProjetoService = /** @class */ (function () {
         var _this = this;
         if (operation === void 0) { operation = 'Operação '; }
         return function (error) {
-            console.error(error); // log to console instead
+            console.error('projeto.service.ts ----- ', error); // log to console instead
             _this.log(operation + " falhou: " + error.message);
             // this.message.error(`${operation} falhou: ${error.message}`, true);
-            _this.message.error(error.error.message, true);
+            if (error.error && error.error.message)
+                _this.message.error(error.error.message, true);
+            else
+                _this.message.error('Erro não identificado. [pro.sev.' + operation + ']', true);
             return Object(rxjs__WEBPACK_IMPORTED_MODULE_2__["of"])(result);
         };
     };
@@ -3355,7 +3518,7 @@ module.exports = ".table tbody {\r\n    border-top: 3px solid #bec2c6; /* #dee2e
 /*! no static exports found */
 /***/ (function(module, exports) {
 
-module.exports = "<div class=\"container\">\r\n  <nav aria-label=\"breadcrumb\">\r\n    <ol class=\"breadcrumb\">\r\n      <li class=\"breadcrumb-item\"><a routerLink=\"/home\">Home</a></li>\r\n      <li class=\"breadcrumb-item active\" aria-current=\"page\">Relatório</li>\r\n    </ol>\r\n  </nav>\r\n  <h2>Relatório de Acompanhamento de Projetos</h2>\r\n  <hr>\r\n\r\n  <div class=\"row\">\r\n    <div class=\"col-4\">\r\n      <div class=\"form-group\">\r\n        <label>Listar Projetos</label>\r\n        <select class=\"form-control custom-select\" #selectProject (change)=\"onChangeFilter($event)\">\r\n          <option value=\"\">Todos</option>\r\n          <option *ngFor=\"let item of reportProjectLis\" value=\"{{item._id}}\">{{item.name}}</option>\r\n        </select>\r\n      </div>\r\n    </div>\r\n  </div>\r\n<!--\r\n  <h4>Filtros</h4>\r\n  <div class=\"row\">\r\n    <div class=\"col-4\">\r\n      <div class=\"row\">\r\n        <div class=\"col\">\r\n          <div class=\"form-group\">\r\n            <label>Nome</label>\r\n            <input type=\"text\" class=\"form-control\">\r\n          </div>\r\n        </div>\r\n      </div>\r\n      <div class=\"row\">\r\n          <div class=\"col-6\">\r\n              <div class=\"form-group\">\r\n                  <label>De</label>\r\n                  <input class=\"form-control datepicker\">\r\n              </div>\r\n          </div>\r\n          <div class=\"col-6\">\r\n              <div class=\"form-group\">\r\n                  <label>Até</label>\r\n                  <input class=\"form-control datepicker\">\r\n              </div>\r\n          </div>\r\n      </div>\r\n      <div class=\"row\">\r\n        <div class=\"col\">\r\n          <div class=\"form-group\">\r\n            <button type=\"button\" class=\"btn btn-primary\">Filtrar</button>\r\n            &nbsp;\r\n            <button type=\"button\" class=\"btn btn-secondary\">Limpar</button>\r\n          </div>\r\n        </div>\r\n      </div>\r\n    </div>\r\n    <div class=\"col-8\">\r\n    </div>\r\n  </div>\r\n  <hr>\r\n  <h4>\r\n    Lista\r\n  </h4>\r\n-->\r\n  <div>\r\n    <table class=\"table\">\r\n      <!--\r\n      <thead>\r\n        <tr>\r\n          <th>cabeça</th>\r\n          <th>cabeça</th>\r\n        </tr>\r\n      </thead>\r\n      -->\r\n      <tbody *ngFor=\"let item of reportProjectLis_Filtered\" style=\"margin-bottom:40px\">\r\n        <tr>\r\n          <td colspan=\"4\">\r\n            <div class=\"small\">Projeto:</div>\r\n            <b>{{item.name}}</b>\r\n          </td>\r\n        <tr>\r\n          <td>\r\n            <div class=\"small\">Data de início:</div>\r\n            <b>{{ ( item.dateStartReport ? item.dateStartReport : '-' ) }}</b>\r\n          </td>\r\n          <td>\r\n            <div class=\"small\">Data de previsão de términio:</div>\r\n            <b>{{ ( item.datePrevisionReport ? item.datePrevisionReport : '-' ) }}</b>\r\n          </td>\r\n          <td>\r\n            <div class=\"small\">Data real de términio:</div>\r\n            <b>{{ ( item.dateEndReport ? item.dateEndReport : '-' ) }}</b>\r\n          </td>\r\n          <td></td>\r\n        </tr>\r\n        <tr>\r\n          <td colspan=\"4\">\r\n            <div class=\"small\">Descrição:</div>\r\n              {{ item.description }}\r\n          </td>\r\n        </tr>\r\n        <tr>\r\n          <td colspan=\"4\">\r\n            <div class=\"small\">Membro(s) do time:</div>\r\n            <div *ngFor=\"let team of item.team\">\r\n              {{ team.name }}\r\n            </div>\r\n          </td>\r\n        </tr>\r\n        <tr>\r\n          <td colspan=\"4\">\r\n            <span class=\"small\">\r\n              Indicadores\r\n            </span>\r\n          </td>\r\n        </tr>\r\n        <tr>\r\n          <td style=\"border-top: none\">\r\n            <div class=\"small\">Fase 1:</div>\r\n            <div *ngFor=\"let ind of item.phases.phase1\">\r\n              {{ ind.name }} - {{ ind.value }} - {{ ind.min }} - {{ ind.max }}\r\n            </div>\r\n          </td>\r\n          <td style=\"border-top: none\">\r\n            <div class=\"small\">Fase 2:</div>\r\n            <div *ngFor=\"let ind of item.phases.phase2\">\r\n              {{ ind.name }} - {{ ind.value }} - {{ ind.min }} - {{ ind.max }}\r\n            </div>\r\n          </td>\r\n          <td style=\"border-top: none\">\r\n            <div class=\"small\">Fase 3:</div>\r\n            <div *ngFor=\"let ind of item.phases.phase3\">\r\n              {{ ind.name }} - {{ ind.value }} - {{ ind.min }} - {{ ind.max }}\r\n            </div>\r\n          </td>\r\n          <td style=\"border-top: none\">\r\n            <div class=\"small\">Fase 4:</div>\r\n            <div *ngFor=\"let ind of item.phases.phase4\">\r\n              {{ ind.name }} - {{ ind.value }} - {{ ind.min }} - {{ ind.max }}\r\n            </div>\r\n          </td>\r\n        </tr>\r\n        <tr>\r\n          <td colspan=\"4\">\r\n            <div class=\"small\">Orçamento:</div>\r\n              {{ item.budget }}\r\n          </td>\r\n        </tr>\r\n        <tr>\r\n          <td colspan=\"4\">\r\n            <div class=\"small\">Risco:</div>\r\n              {{ item.risk }}\r\n          </td>\r\n        </tr>\r\n        <tr>\r\n          <td colspan=\"2\">\r\n            <div class=\"small\">Status:</div>\r\n              {{ item.status }}\r\n          </td>\r\n          <td colspan=\"2\" *ngIf=\"item.userChangeStatus\">\r\n            <div class=\"small\">Última alteração de status:</div>\r\n              {{ item.dateChangeStatusReport }}\r\n              <br>\r\n              {{ item.userChangeStatus.name }}\r\n              <br>\r\n              <span class=\"small\">\r\n                  {{ item.userChangeStatus.role }}\r\n              </span>\r\n          </td>\r\n        </tr>\r\n        <tr *ngIf=\"manager\">\r\n          <td colspan=\"4\">\r\n            <div class=\"small\">Gerente:</div>\r\n              {{ manager.name }} <span class=\"small\"> {{ manager.role }} </span>\r\n          </td>\r\n        </tr>\r\n      </tbody>\r\n    </table>\r\n  </div>\r\n</div>\r\n"
+module.exports = "<div class=\"container\">\r\n  <nav aria-label=\"breadcrumb\">\r\n    <ol class=\"breadcrumb\">\r\n      <li class=\"breadcrumb-item\"><a routerLink=\"/home\">Home</a></li>\r\n      <li class=\"breadcrumb-item active\" aria-current=\"page\">Relatório</li>\r\n    </ol>\r\n  </nav>\r\n  <h2>Relatório de Acompanhamento de Projetos</h2>\r\n  <hr>\r\n\r\n  <div class=\"row\">\r\n    <div class=\"col-4\">\r\n      <div class=\"form-group\">\r\n        <label>Listar Projetos</label>\r\n        <select class=\"form-control custom-select\" #selectProject (change)=\"onChangeFilter($event)\">\r\n          <option value=\"\">Todos</option>\r\n          <option *ngFor=\"let item of reportProjectLis\" value=\"{{item._id}}\">{{item.name}}</option>\r\n        </select>\r\n      </div>\r\n    </div>\r\n  </div>\r\n<!--\r\n  <h4>Filtros</h4>\r\n  <div class=\"row\">\r\n    <div class=\"col-4\">\r\n      <div class=\"row\">\r\n        <div class=\"col\">\r\n          <div class=\"form-group\">\r\n            <label>Nome</label>\r\n            <input type=\"text\" class=\"form-control\">\r\n          </div>\r\n        </div>\r\n      </div>\r\n      <div class=\"row\">\r\n          <div class=\"col-6\">\r\n              <div class=\"form-group\">\r\n                  <label>De</label>\r\n                  <input class=\"form-control datepicker\">\r\n              </div>\r\n          </div>\r\n          <div class=\"col-6\">\r\n              <div class=\"form-group\">\r\n                  <label>Até</label>\r\n                  <input class=\"form-control datepicker\">\r\n              </div>\r\n          </div>\r\n      </div>\r\n      <div class=\"row\">\r\n        <div class=\"col\">\r\n          <div class=\"form-group\">\r\n            <button type=\"button\" class=\"btn btn-primary\">Filtrar</button>\r\n            &nbsp;\r\n            <button type=\"button\" class=\"btn btn-secondary\">Limpar</button>\r\n          </div>\r\n        </div>\r\n      </div>\r\n    </div>\r\n    <div class=\"col-8\">\r\n    </div>\r\n  </div>\r\n  <hr>\r\n  <h4>\r\n    Lista\r\n  </h4>\r\n-->\r\n  <div>\r\n    <table class=\"table\">\r\n      <!--\r\n      <thead>\r\n        <tr>\r\n          <th>cabeça</th>\r\n          <th>cabeça</th>\r\n        </tr>\r\n      </thead>\r\n      -->\r\n      <tbody *ngFor=\"let item of reportProjectLis_Filtered\" style=\"margin-bottom:40px\">\r\n        <tr>\r\n          <td colspan=\"4\">\r\n            <div class=\"small\">Projeto:</div>\r\n            <b>{{item.name}}</b>\r\n          </td>\r\n        <tr>\r\n          <td>\r\n            <div class=\"small\">Data de início:</div>\r\n            <b>{{ ( item.dateStartReport ? item.dateStartReport : '-' ) }}</b>\r\n          </td>\r\n          <td>\r\n            <div class=\"small\">Data de previsão de términio:</div>\r\n            <b>{{ ( item.datePrevisionReport ? item.datePrevisionReport : '-' ) }}</b>\r\n          </td>\r\n          <td>\r\n            <div class=\"small\">Data real de términio:</div>\r\n            <b>{{ ( item.dateEndReport ? item.dateEndReport : '-' ) }}</b>\r\n          </td>\r\n          <td></td>\r\n        </tr>\r\n        <tr>\r\n          <td colspan=\"4\">\r\n            <div class=\"small\">Descrição:</div>\r\n              {{ item.description }}\r\n          </td>\r\n        </tr>\r\n        <tr>\r\n          <td colspan=\"4\">\r\n            <div class=\"small\">Membro(s) do time:</div>\r\n            <div *ngFor=\"let team of item.team\">\r\n              {{ team.name }}\r\n            </div>\r\n          </td>\r\n        </tr>\r\n        <tr>\r\n          <td colspan=\"4\">\r\n            <span class=\"small\">\r\n              Indicadores\r\n            </span>\r\n          </td>\r\n        </tr>\r\n        <tr>\r\n          <td style=\"border-top: none\">\r\n            <div class=\"small\">Fase 1:</div>\r\n            <div *ngFor=\"let ind of item.phases.phase1\">\r\n              {{ ind.name }}: {{ ind.value }}\r\n              <div class=\"small mb-2\">mínimo: {{ ind.min }} | máximo: {{ ind.max }}</div>\r\n            </div>\r\n          </td>\r\n          <td style=\"border-top: none\">\r\n            <div class=\"small\">Fase 2:</div>\r\n            <div *ngFor=\"let ind of item.phases.phase2\">\r\n              {{ ind.name }}: {{ ind.value }}\r\n              <div class=\"small mb-2\">mínimo: {{ ind.min }} | máximo: {{ ind.max }}</div>\r\n            </div>\r\n          </td>\r\n          <td style=\"border-top: none\">\r\n            <div class=\"small\">Fase 3:</div>\r\n            <div *ngFor=\"let ind of item.phases.phase3\">\r\n              {{ ind.name }}: {{ ind.value }}\r\n              <div class=\"small mb-2\">mínimo: {{ ind.min }} | máximo: {{ ind.max }}</div>\r\n            </div>\r\n          </td>\r\n          <td style=\"border-top: none\">\r\n            <div class=\"small\">Fase 4:</div>\r\n            <div *ngFor=\"let ind of item.phases.phase4\">\r\n              {{ ind.name }}: {{ ind.value }}\r\n              <div class=\"small mb-2\">mínimo: {{ ind.min }} | máximo: {{ ind.max }}</div>\r\n            </div>\r\n          </td>\r\n        </tr>\r\n        <tr>\r\n          <td colspan=\"4\">\r\n            <div class=\"small\">Orçamento:</div>\r\n              {{ item.budget }}\r\n          </td>\r\n        </tr>\r\n        <tr>\r\n          <td colspan=\"4\">\r\n            <div class=\"small\">Risco:</div>\r\n              {{ item.risk }}\r\n          </td>\r\n        </tr>\r\n        <tr>\r\n          <td colspan=\"2\">\r\n            <div class=\"small\">Status:</div>\r\n              {{ item.status }}\r\n          </td>\r\n          <td colspan=\"2\" *ngIf=\"item.userChangeStatus\">\r\n            <div class=\"small\">Última alteração de status:</div>\r\n              {{ item.dateChangeStatusReport }}\r\n              <br>\r\n              {{ item.userChangeStatus.name }}\r\n              <br>\r\n              <span class=\"small\">\r\n                  {{ item.userChangeStatus.role }}\r\n              </span>\r\n          </td>\r\n        </tr>\r\n        <tr *ngIf=\"manager\">\r\n          <td colspan=\"4\">\r\n            <div class=\"small\">Gerente:</div>\r\n              {{ manager.name }} <span class=\"small\"> {{ manager.role }} </span>\r\n          </td>\r\n        </tr>\r\n      </tbody>\r\n    </table>\r\n  </div>\r\n</div>\r\n"
 
 /***/ }),
 

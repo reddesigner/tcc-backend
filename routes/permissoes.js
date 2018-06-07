@@ -23,7 +23,7 @@ router.get('/', function(req, res){
 
 // put
 router.put('/:id', function(req, res){
-    console.log('put em permissões');
+    console.log('\nPUT em permissões');
     permissionModel.findById(req.params.id, function(err, obj) {
         if (err) {
             // retorna mensagem de erro
@@ -35,8 +35,8 @@ router.put('/:id', function(req, res){
         // TODO validar requisição [ tenho que verificar qual veio para ser alterado! ]
         // recebe os valores da requisição
         obj.role = req.body.role;
-console.log('a rota é', req.body.route);
-console.log('a view é', req.body.view);
+//console.log('a rota é', req.body.route);
+//console.log('a view é', req.body.view);
         if (req.body.route != '' && req.body.route != undefined)
             obj.route = req.body.route;
         if (req.body.view != '' && req.body.view != undefined)

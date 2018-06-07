@@ -38,7 +38,7 @@ router.post('/', function(req, res) {
   
             // verificar password
             var compare = await user.isValidPassword(req.body.password);
-            console.log('.............. o resultado da comparação assincrona com hash de senhas é: ', compare);
+            //console.log('.............. o resultado da comparação assincrona com hash de senhas é: ', compare);
 
             //if (user.password != req.body.password) {
             if (!compare) {
@@ -52,7 +52,11 @@ router.post('/', function(req, res) {
                     name: user.name,
                     email: user.email,
                     role: user.role
+                    //now: Date.now(),
+                    //exptest1: Math.floor(Date.now()) + (60 * 3),
+                    //explike: Math.floor(Date.now() / 1000) + (60 * 3) // expiração em 3 minutos
                 };
+                //var token = jwt.sign(payload, config.secret);
                 var token = jwt.sign(payload, config.secret, {
                     expiresIn: 60 * 3 // formato: segundos * minutos * horas... explemplo de expiraçãos: 60 * 60 * 24 = 24 horas, ou então 60 * 10 = 10 minutos...
                 });
@@ -68,11 +72,11 @@ router.post('/', function(req, res) {
                         return;
                     }
                     //userPerm = perms;
-                    console.log('\n\n\n---------->>>>>>', perms);
+                    //console.log('\n\n\nautenticar.js 1 ---------->>>>>>', perms);
                     perms.forEach(el => {
                         userPerm += ',' + el.route;
                     });
-                    console.log('\n\n---------->>>>>>', userPerm);
+                    //console.log('\n\n\nautenticar.js 2 ---------->>>>>>', userPerm);
 
                     // retorna o token
                     res.status(200);

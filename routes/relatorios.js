@@ -84,7 +84,7 @@ route.get(
                     //metadata
                 }
             }
-            for (var c=0; c<prjs[t].phases.phase2.length; c++){
+            for (var c=0; c<prjs[t].phases.phase4.length; c++){
                 if (prjs[t].phases.phase4[c].value < prjs[t].phases.phase4[c].min || prjs[t].phases.phase4[c].value > prjs[t].phases.phase4[c].max) {
                     prjs[t].flagged = true;
                     prjs[t].phases.phase4[c].flagged = true;

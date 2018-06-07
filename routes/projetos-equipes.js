@@ -13,7 +13,7 @@ route.get('/:idProjeto', function(req, res){
     projetoModel.findById(req.params.idProjeto, function(err, prj){
         if (err) {
             // retorna mensagem de erro
-            // TODO retornar código http de erro
+            res.status(400);
             res.json({ message: 'Erro na recuperação de Projetos/Equipes com ID', type: 'error' });
             return;
         }
@@ -28,7 +28,7 @@ route.put('/:idProjeto', function(req, res){
     projetoModel.findById(req.params.idProjeto, function(err, prj) {
         if (err) {
             // retorna mensagem de erro
-            // TODO retornar código http de erro
+            res.status(400);
             res.json({ message: 'Erro na fase de recuperação de um Projeto/Equipes por ID para edição', type: 'error' });
             return;
         }
@@ -36,7 +36,7 @@ route.put('/:idProjeto', function(req, res){
         // TODO validar requisição [ tenho que verificar qual veio para ser alterado! ]
         // recebe os valores da requisição
         // nomes dos campos no formulario deve ser: team[0][_id], team[0][name]...
-        console.log('o time enviado no put', req.body.team);
+        console.log('\no time enviado no put', req.body.team);
         if (req.body.team != undefined) {
             prj.team = req.body.team;
         } else {
@@ -47,7 +47,7 @@ route.put('/:idProjeto', function(req, res){
         prj.save(function(err, prja){
             if (err) {
                 // retorna mensagem de erro
-                // TODO retornar código http de erro
+                res.status(400);
                 res.json({ message: 'Erro na edição de Projetos/Equipes', type: 'error' });
                 return;
             }

@@ -18,6 +18,7 @@ var projectSchema = new Schema({
     description: String,
     budget: Number, // TODO parece que não pode haver virgula, deve ser ponto o separador fracionario
     risk: String,
+    riskAlert: { type: Boolean, default: false },
     actualPhase: Number, // 4 fases do RUP: inicio, elaboração, construção e transição
     // relacionamentos
     phases: {

@@ -1,11 +1,14 @@
 var express = require('express');
 var route = express.Router();
 
+var mailer = require('../extra/mailer');
+
 var bodyParser = require('body-parser');
 route.use(bodyParser.urlencoded({ extended: true }));
 route.use(bodyParser.json());
 
 var projetoModel = require('../models/projetos');
+var usuarioModel = require('../models/usuarios');
 
 // não há necessidade um GET simples, tem que haver id do projeto sempre
 route.get('/:idProjeto', function(req, res){
@@ -13,7 +16,7 @@ route.get('/:idProjeto', function(req, res){
     projetoModel.findById(req.params.idProjeto, function(err, prj){
         if (err) {
             // retorna mensagem de erro
-            // TODO retornar código http de erro
+            res.status(400);
             res.json({ message: 'Erro na recuperação de Projetos/Indicadores/Fases com ID', type: 'error' });
             return;
         }
@@ -28,7 +31,7 @@ route.put('/:idProjeto', function(req, res){
     projetoModel.findById(req.params.idProjeto, function(err, prj) {
         if (err) {
             // retorna mensagem de erro
-            // TODO retornar código http de erro
+            res.status(400);
             res.json({ message: 'Erro na fase de recuperação de um Projeto/Indicadores/Fases por ID para edição', type: 'error' });
             return;
         }
@@ -140,19 +143,38 @@ route.put('/:idProjeto', function(req, res){
         } /*else { 
             prj.phases.phase4 = [];
         }*/
+
         // TODO se nada for enviado, dará algum erro?
 
-        // enviar email ?
+        // enviar emails
         console.log('alertas', alertCounter_1 + alertCounter_2 + alertCounter_3 + alertCounter_4);
         if (alertCounter_1 + alertCounter_2 + alertCounter_3 + alertCounter_4 > 3) {
             // send email !!!
-            console.log('enviando email...');
+            console.log('TODO enviando email... pegar os recipientes do email... quem são eles?');
+            mailer.setTo(prj.manager.email);
+            mailer.setMessage('Atenção, '+prj.manager.name+'.\n\nO projeto '+prj.name+', que é de alto risco, tem vários indicadores fora dos valores de referência.\nAcompanhe o andamento do projeto de perto\n\n-=Portfolio-Projetos=-.');
+            mailer.send(); // envia email!
+            //
+            let listEmail;
+            usuarioModel.find({ role: 'Líder do Escritório de Projetos'}).lean().exec(async function(err, obj){
+                if (err) {
+                    // TODO retorna mensagem de erro?... melhor seria fazer um LOG apenas
+                }
+                await obj.forEach(element => {
+                    listEmail += element.role + ','
+                });
+            });
+            if (listEmail) {
+                mailer.setTo(listEmail);
+                mailer.setMessage('Atenção.\n\nO projeto '+prj.name+', que é de alto risco, tem vários indicadores fora dos valores de referência.\nAcompanhe o andamento do projeto de perto\n\n-=Portfolio-Projetos=-.');
+                mailer.send(); // envia email!
+            }
         }
     
         prj.save(function(err, prja){
             if (err) {
                 // retorna mensagem de erro
-                // TODO retornar código http de erro
+                res.status(400);
                 res.json({ message: 'Erro na edição de Projetos/Indicadores/Fases', type: 'error' });
                 return;
             }

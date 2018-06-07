@@ -13,7 +13,7 @@ route.get('/:idProjeto', function(req, res){
     projetoModel.findById(req.params.idProjeto, function(err, prj){
         if (err) {
             // retorna mensagem de erro
-            // TODO retornar código http de erro
+            res.status(400);
             res.json({ message: 'Erro na recuperação de Projetos/Status com ID', type: 'error' });
             return;
         }
@@ -28,7 +28,7 @@ route.put('/:idProjeto', function(req, res){
     projetoModel.findById(req.params.idProjeto, function(err, prj) {
         if (err) {
             // retorna mensagem de erro
-            // TODO retornar código http de erro
+            res.status(400);
             res.json({ message: 'Erro na fase de recuperação de um Projeto/Status por ID para edição', type: 'error' });
             return;
         }
@@ -38,12 +38,12 @@ route.put('/:idProjeto', function(req, res){
         prj.status = req.body.status;
         prj.justification = req.body.justification;
         prj.dateChangeStatus = req.body.dateChangeStatus; // Date.now()
-        prj.userChangeStatus = req.body.userChangeStatus; // object { _id, name }
+        prj.userChangeStatus = req.body.userChangeStatus; // object { _id, name, email, role }
     
         prj.save(function(err, prja){
             if (err) {
                 // retorna mensagem de erro
-                // TODO retornar código http de erro
+                res.status(400);
                 res.json({ message: 'Erro na edição de Projetos/Equipes', type: 'error' });
                 return;
             }

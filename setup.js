@@ -14,19 +14,19 @@ router.get('/', function(req, res){
     // insere um usuário de SETUP
 
     // verifica se já existe
-    userModel.findOne({ 'name': 'SETUP' }, function(err, obj){
+    userModel.findOne({ 'name': 'Usuário SETUP' }, function(err, obj){
         if (err) {
             // erro!
             console.log('erro na função de SETUP');
         }
         // já existe o objeto
-        console.log('SETUP - já existe um usuário de setup');
+        console.log('Usuário SETUP - já existe um usuário de setup... regravando por cima...');
     });
 
     var User = new userModel();
-    User.name = 'SETUP';
-    User.email = 'setup@email.com';
-    User.password = 'setup';
+    User.name = 'Usuário SETUP';
+    User.email = 'redfrigerator@gmail.com';
+    User.password = 'red123a';
     User.role = 'Administrador';
 
     User.save(function(err, usr){
@@ -39,12 +39,8 @@ router.get('/', function(req, res){
             return;
         }
         // Devolve o objeto salvo
-        res.json(usr);
+        //res.json(usr);
     });
-
-});
-
-router.post('/', function(req, res){
 
     // insere Permissões
 

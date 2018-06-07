@@ -3,28 +3,33 @@
 /*  aplicação Portfolio de Projetos
 /*  TCC PUC Minas - pós graduação em desenvolvimento web, 2016-2018
 /*  autor/aluno: Alexandre O Dias
-**/
+ */
 
 // chamada dos pacotes
 var express = require('express');
 var app = express();
 
-//var jwt = require('jsonwebtoken');
+//var bodyParser = require('body-parser');
 
-var bodyParser = require('body-parser');
-
+/**
+ * configurações básicas da aplicação
+ */
 var config = require('./config');
 
-var mailer = require('./extra/mailer');
-// mailer.send(); // envia email!
+//var mailer = require('./extra/mailer');
+//mailer.send(); // envia email!
 
 var cron = require('./extra/cron');
 //cron.initTest();
+cron.initMonth();
+cron.initWeek();
 
-// banco de dados
+/**
+ * banco de dados (mongodb)
+ */
 var mongoose = require('mongoose');
 //
-var db = mongoose.connection;
+/*var db = mongoose.connection;
 db.on('connecting', function() {
   console.log('|-----------------------> connecting to MongoDB...');
 });
@@ -44,24 +49,27 @@ db.on('reconnected', function () {
 db.on('disconnected', function() {
   console.log('|-----------------------> MongoDB disconnected!');
   // mongoose.connect(config.database, {server:{auto_reconnect:true}}); // Atenção: mongoose.connect em 2 lugares diferentes!
-});
+});*/
 //
 mongoose.connect(config.database, function(err){
     if (err) {
-        console.log('\n\nSERVER.JS, linha 50\n - Erro de conexão com banco de dados');
+        console.log('\n\nSERVER.JS\n - Erro de conexão com banco de dados');
         return;
     }
 });
 
-// cors
+/**
+ * configuração básica de CORS
+ * alguns headers são expostos para transitar meta dados entre back e frontend
+ */
 var cors = require('cors');
 app.use(cors({
-    exposedHeaders: ['authorization', 'content-type', 'observe', 'x-access-token', 'X-Powered-By', 'x-permissions']
+    exposedHeaders: ['authorization', 'content-type', 'observe', 'x-access-token', 'X-Powered-By', 'x-permissions', 'x-refresh']
 }));
 
 // configrar body-parser
-app.use(bodyParser.urlencoded({ extended: true }));
-app.use(bodyParser.json());
+//app.use(bodyParser.urlencoded({ extended: true }));
+//app.use(bodyParser.json());
 
 // roteadores
 var setupRoute = require('./setup');
@@ -167,6 +175,6 @@ app.use(function(req, res){
 
 // ========================================================= //
 
-app.listen(4200);
+app.listen(3000);
 
-console.log('\n\napp rodando e ouvindo na porta 4200\n\n');
+console.log('\n\napp rodando e ouvindo na porta 3000\n\n');

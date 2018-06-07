@@ -36,66 +36,68 @@ criar modelos de dados para as entidades
 - projetos x indicadores x fases            == ok
 - permissão de telas por perfis             == ok
 
-- alterar status do projeto (com justificativa) todos perfins podem atuar aqui
+- alterar status do projeto (com justificativa) todos perfins podem atuar aqui      == ok, mas a validação de perfil tbm está valendo para essa funcionalidade
 
 procedimentos agendados
-- risco alto deve ter acompanhamento semanal
-- 3+ indicadores no vermelho envia email p/ direção
+- risco alto deve ter acompanhamento semanal            == TODO
+- 3+ indicadores no vermelho envia email p/ direção     == TODO email
 
-envio de email
+envio de email              == ok (smtp do google!)
 
+---------------------------------------------------------------------------------------------------
 
+lista de perfis:
+- administrador do sistema                - admin
+- alta direção                            - director
+- líder de escritorio de projetos         - team principal
+- líder de projetos                       - team leader
+- gerente de projetos                     - manager
 
-perfil:
-administrador do sistema - admin
-alta direção - director
-líder de escritorio de projetos - team principal
-líder de projetos - team leader
-gerente de projetos - manager
+lista de permissões x perfil:
+- crud projetos                 - lider de escritorio de projetos       - /projeto
+- crud indicadores              - lider de escritorio de projetos       - /indicador
+- crud usuarios                 - administrador sistema                 - /usuario
+- status projetos               - todo mundo                            - /projeto-status (put)
+- equipe projetos               - lider de projetos                     - /projeto-equipe
+- indicador projeto             - lider de escritorio de projetos       - /projeto-indicador
+- indicador fases projeto       - gerente de projeto                    - /projeto-fase-indicador
+- permissões de telas           - administrador sistema                 - /permissao
+- relatorio                     - alta direção                          - /relatorio
 
-permissões x perfil:
-crud projetos - lider de escritorio de projetos - /projeto
-crud indicadores - lider de escritorio de projetos - /indicador
-crud usuarios - administrador sistema - /usuario
-status projetos - todo mundo - /projeto-status (put)
-equipe projetos - lider de projetos - /projeto-equipe
-indicador projeto - lider de escritorio de projetos - /projeto-indicador
-indicador fases projeto - gerente de projeto - /projeto-fase-indicador
-permissões de telas - administrador sistema - /permissao
-relatorio - alta direção - /relatorio
-
-
+---------------------------------------------------------------------------------------------------
 
 FRONTEND
 
-prototipos
-criar projeto
-implementar prototipo
-rotas
+prototipos                  == ok
+criar projeto               == ok
+implementar prototipo       == OK
+rotas                       == OK
 carregar listas
-- lista projeto
-- lista usuarios
-- lista indicadores
+- lista projeto             == OK
+- lista usuarios            == ok
+- lista indicadores         == ok
 
+---------------------------------------------------------------------------------------------------
 
+ESCRITA                     == ok
 
-ESCRITA
-
-intro
-desenho (atores, casos de uso)
+introdução
+diagrama atores x casos de uso
+diagrama de classes
 casos de uso
+diagrama de estado
 casos de teste
-teste usabilidade
+teste usabilidade/funcionalidade
 arquitetura de software
-ahhhh!!!
+arquitetura da informação
 
-
+---------------------------------------------------------------------------------------------------
 
 Setup inicial da aplicação
 - um usuário com role máximo (admin)
 - views/roles cadastrados na tabela de permissões
 
-
+---------------------------------------------------------------------------------------------------
 
 - passos para finalizar
 21/05 - habilitar CORS, deixar servidor rodando na amazon com ultima versão
@@ -110,7 +112,7 @@ Setup inicial da aplicação
 30 - mais um dia
 31 - enviar tudo!
 
-
+---------------------------------------------------------------------------------------------------
 
 Para envio de emails:
 
@@ -134,7 +136,7 @@ mandrill
 google
     - desiste de tudo ai de cima... usa o google!
 
-
+---------------------------------------------------------------------------------------------------
 
 lexaton
 26/05/18
@@ -162,26 +164,24 @@ blocos de horas:
 00h30
 * caralho... ainda nas Permissões... andando como uma tartaruga
 
-
 27/05/18
 só comecei as 17hs!!! fui ver corrida F1, deois na casa nos sogros... fudeu...
 fiz algumas coisas...
 21h00 agora é projeto!
 
-
-
+---------------------------------------------------------------------------------------------------
 
 para sabe sobre pagamentos e tutorias e entregas e etc...
 Central de Informações da PUC Minas é o (31) 3319-4444.
 
+---------------------------------------------------------------------------------------------------
 
 coisas a fazer depois (se o povo da PUC perguntar)
 paginação nas tabelas
 filtros nas tabelas
 activeGuard do angular para previnir mostrar rotas que o usuário não tem permissão
 
-
-
+---------------------------------------------------------------------------------------------------
 
 ante-penultimo dia!!!
 já é noite!!!... bicho tá pegannnnnndo...
@@ -199,3 +199,23 @@ TCC00 um deles tem evidências (prints com as telas e as situações narradas)
 TCC01 tem só um tabelão de testes, nem mesmo divide por caso de uso
 TCC02 tem teste de usuários com prints
 TCC03 tem tabelas divididas por caso de uso
+
+---------------------------------------------------------------------------------------------------
+
+jogo do resta um!
+04/06/18, e agora 05/06...
+
+terminar autenticação/autorização               == ok!
+settimeout para ver se usuário está logado ainda (do mesmo tempo que dura o token no servidor)      == meh
+colocar gerente no projeto (novo e editar)      == ok
+criar caso de uso indicador - projeto           == ok
+corrigir indicador - projeto - fase             == ok
+fazer envio de emails funcionar                 == ok
+formatar relatório (ver os indicadores)         == ok
+fazer o cronometro do email mensal com projetos cancelados              == ok
+fazer o cronometro do acompanhamento semanal de projetos de alto risco (aviso na interface? mandar email?)          == meh
+criar funcionalidade esqueci minha senha
+verificar validações de projetos/indicadores/usuarios
+verificar validações de permissões (deve sempre haver uma no mínimo para cada bloco!) >> equipes e indicadores no projeto podem ser zeradas, então não é preciso validar!
+valida indicadores min. max e value
+botão ao lado dos campos de data(inicial, previsão, final) para apagá-las (jã que são campos readonly)

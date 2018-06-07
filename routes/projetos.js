@@ -6,6 +6,7 @@ route.use(bodyParser.urlencoded({ extended: true }));
 route.use(bodyParser.json());
 
 var projetoModel = require('../models/projetos');
+var userModel = require('../models/usuarios');
 
 route.get('/', function(req, res){
     console.log('-\nGET em projetos');
@@ -36,6 +37,7 @@ route.post('/', function(req, res){
     Projeto.description = req.body.description;
     Projeto.budget = req.body.budget;
     Projeto.risk = req.body.risk;
+    Projeto.manager = req.body.manager; // _id name email role
     //justification =
     //Projeto.dateChangeStatus =
     //Projeto.userChangeStatus = {};
@@ -54,6 +56,19 @@ route.post('/', function(req, res){
         // Devolve o objeto salvo
         res.status(201);
         res.json(prj);
+    });
+});
+
+route.get('/manager', function(req, res){
+    console.log('-\nGET managers em projetos');
+    userModel.find({ role: 'Gerente de Projeto'}).lean().exec(function(err, obj){
+        if (err) {
+            // retorna mensagem de erro
+            res.status(400);
+            res.json({ message: 'Erro na recuperação de gerentes para um Projeto', type: 'error' });
+            return;
+        }
+        res.json(obj);
     });
 });
 
@@ -98,6 +113,7 @@ route.put('/:id', function(req, res){
         prj.description = req.body.description;
         prj.budget = req.body.budget;
         prj.risk = req.body.risk;
+        prj.manager = req.body.manager; // _id name email role
         // relacionamentos [ não são atualizados aqui! ]
         //prj.manager = {};
         //prj.indicators = [];
@@ -115,7 +131,7 @@ route.put('/:id', function(req, res){
             );
         }
         */
-    
+
         prj.save(function(err, prja){
             if (err) {
                 // retorna mensagem de erro

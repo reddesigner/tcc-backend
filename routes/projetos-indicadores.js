@@ -13,7 +13,7 @@ route.get('/:idProjeto', function(req, res){
     projetoModel.findById(req.params.idProjeto, function(err, prj){
         if (err) {
             // retorna mensagem de erro
-            // TODO retornar código http de erro
+            res.status(400);
             res.json({ message: 'Erro na recuperação de Projetos/Indicadores com ID', type: 'error' });
             return;
         }
@@ -24,11 +24,11 @@ route.get('/:idProjeto', function(req, res){
 // não há POST, apenas PUT
 route.put('/:idProjeto', function(req, res){
     console.log('-\nPUT em projetos x indicadores');
-    console.log(req.params.id);
+    console.log(req.params.idProjeto);
     projetoModel.findById(req.params.idProjeto, function(err, prj) {
         if (err) {
             // retorna mensagem de erro
-            // TODO retornar código http de erro
+            res.status(400);
             res.json({ message: 'Erro na fase de recuperação de um Projeto/Indicadores por ID para edição', type: 'error' });
             return;
         }
@@ -36,8 +36,8 @@ route.put('/:idProjeto', function(req, res){
         // TODO validar requisição [ tenho que verificar qual veio para ser alterado! ]
         // recebe os valores da requisição
         // nomes dos campos no formulario deve ser: ind[0][_id], ind[0][name]...
-        if (req.body.ind != undefined) {
-            prj.indicators = req.body.ind;
+        if (req.body.indicators != undefined) {
+            prj.indicators = req.body.indicators;
         } else {
             prj.indicators = [];
         }
@@ -46,7 +46,7 @@ route.put('/:idProjeto', function(req, res){
         prj.save(function(err, prja){
             if (err) {
                 // retorna mensagem de erro
-                // TODO retornar código http de erro
+                res.status(400);
                 res.json({ message: 'Erro na edição de Projetos/Indicadores', type: 'error' });
                 return;
             }
