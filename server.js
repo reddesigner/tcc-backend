@@ -21,8 +21,8 @@ var config = require('./config');
 
 var cron = require('./extra/cron');
 //cron.initTest();
-cron.initMonth();
-cron.initWeek();
+cron.initMonth(); // checagem mensal de projetos cancelados
+cron.initWeek(); // checagem semanal de acompanhamento de projetos de alto risco
 
 /**
  * banco de dados (mongodb)

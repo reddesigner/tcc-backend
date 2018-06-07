@@ -5,8 +5,7 @@ var projetoModel = require('../models/projetos');
 cron = {
 
     initWeek: function(){
-        var job = new CronJob('30 * * * * *', function() {
-        //var job = new CronJob('00 30 11 * * 5', function() {
+        var job = new CronJob('00 30 11 * * 5', function() {
             // acompanhamento semanal de projetos de risco alto
             // TODO alerta na interface?
             projetoModel.find({ 
@@ -36,8 +35,7 @@ cron = {
     },
 
     initMonth: function(){
-        var job = new CronJob('1 * * * * *', function() {
-        //var job = new CronJob('00 30 11 1 * *', function() {
+        var job = new CronJob('00 30 11 1 * *', function() {
             // acompanhamento mensal de projetos cancelados (roda todo dia 1, às 11h30)
 
             var x = new Date(); // nova data
@@ -93,7 +91,7 @@ cron = {
     initTest: function(){
         var job = new CronJob('4 * * * * *', function() {
             // job
-            console.log('mensagem a cada segundo 4')
+            console.log('mensagem a cada segundo 4');
         }, function () {
             // This function is executed when the job stops
             console.log('cron terminou mês');
