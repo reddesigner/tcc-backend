@@ -155,7 +155,7 @@ app.use('/frontend', function(req, res){
 
 // qualquer outra rota tem retorno: http 404
 app.use(function(req, res){
-    console.log('\n\nSERVER.JS 150. \n 404');
+    console.log('\n\nSERVER.JS\n 404');
     // responde com html
     if (req.accepts('html')) { // melhor usar req.format ?
         res.status(404);
@@ -175,6 +175,6 @@ app.use(function(req, res){
 
 // ========================================================= //
 
-app.listen(3000);
+app.listen(4200);
 
-console.log('\n\napp rodando e ouvindo na porta 3000\n\n');
+console.log('\n\napp rodando e ouvindo na porta 4200\n\n');

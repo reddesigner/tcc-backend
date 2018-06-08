@@ -7,7 +7,7 @@
 /*! no static exports found */
 /***/ (function(module, exports) {
 
-module.exports = "/* You can add global styles to this file, and also import other style files */\r\n\r\nfooter {\r\n  padding: .45rem 0 0 0;\r\n  text-align: center;\r\n  height: 40px;\r\n  color: #fff;\r\n}\r\n\r\n.container {\r\n  min-height: calc(100vh - 120px);\r\n}\r\n\r\n/* - */\r\n\r\n.w1p {    width: 1%; }\r\n\r\n.w1of5,\r\n.w20p {   width: 20%; }\r\n\r\n.w1of4,\r\n.w25p {   width: 25%; }\r\n\r\n.w2of5 {  width: 40%; }\r\n\r\n.w50p {   width: 50%; }\r\n\r\n.w3of5 {  width: 60%; }\r\n\r\n.w4of5 {  width: 80%; }\r\n\r\n/* - */\r\n\r\n"
+module.exports = "/* You can add global styles to this file, and also import other style files */\r\n\r\nfooter {\r\n  padding: .45rem 0 0 0;\r\n  text-align: center;\r\n  height: 40px;\r\n  color: #fff;\r\n}\r\n\r\n.container {\r\n  min-height: calc(100vh - 120px);\r\n}\r\n\r\n/* - */\r\n\r\n.w1p {    width: 1%; }\r\n\r\n.w1of5,\r\n.w20p {   width: 20%; }\r\n\r\n.w1of4,\r\n.w25p {   width: 25%; }\r\n\r\n.w2of5 {  width: 40%; }\r\n\r\n.w50p {   width: 50%; }\r\n\r\n.w3of5 {  width: 60%; }\r\n\r\n.w4of5 {  width: 80%; }\r\n\r\n/* - */\r\n\r\n.datepicker-set {\r\n  position: relative\r\n}\r\n\r\n.datepicker-clear {\r\n  border: none;\r\n  background: transparent;\r\n  position: absolute;\r\n  margin-top: 4px;\r\n  margin-right: 4px;\r\n  top: 0;\r\n  right: 0;\r\n  z-index: 1;\r\n  border-radius: 50%;\r\n  text-transform: uppercase;\r\n  font-weight: bold;\r\n  font-size: 20px;\r\n  height: 25px;\r\n  line-height: 1;\r\n  cursor: pointer;\r\n}"
 
 /***/ }),
 
