@@ -2,6 +2,7 @@ var express = require('express');
 var router = express.Router();
 
 var util = require('../extra/util');
+var mailer = require('../extra/mailer');
 
 var bodyParser = require('body-parser');
 router.use(bodyParser.urlencoded({ extended: true }));
@@ -50,8 +51,12 @@ router.post('/', function(req, res){
             return;
         }
         // enva email para usuário com senha temporária
-        if (passwordTemp)
-            console.log('password temorário!!!!!!!', passwordTemp);
+        if (passwordTemp) {
+            console.log('|----------> password temorário!!!!!!!', passwordTemp);
+            mailer.setTo(usr.email);
+            mailer.setMessage('Caro usuário. Foi criado uma conta de acesso ao sistema. O login é o email '+usr.email+' e a senha é '+passwordTemp);
+            mailer.send(); // envia email!
+        }
         // Devolve o objeto salvo
         res.status(201);
         res.json(usr);
@@ -106,8 +111,12 @@ router.put('/:id', function(req, res){
                 return;
             }
             // enva email para usuário com senha temporária
-            if (passwordTemp)
-                console.log('|----------> anote o password temorário!!!!!!!', passwordTemp);
+            if (passwordTemp) {
+                console.log('|----------> password temorário!!!!!!!', passwordTemp);
+                mailer.setTo(usra.email);
+                mailer.setMessage('Caro usuário. Foi criado uma conta de acesso ao sistema. O login é o email '+usra.email+' e a senha é '+passwordTemp);
+                mailer.send(); // envia email!
+            }
             // Devolve o objeto salvo
             res.status(201);
             res.json(usra);
